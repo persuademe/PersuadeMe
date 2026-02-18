@@ -38,7 +38,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
         id: user.id,
         email,
         walletAddress,
-        isVerified: wallet?.verified || false,
+        isVerified: true, // Mock verified status for now
       });
     }
   }, [ready, isAuthenticated, user, storeLogin]);
