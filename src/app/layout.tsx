@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
+import "./globals.css";
 
 export default function RootLayout({
   children,
@@ -16,8 +17,8 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className="dark">
+      <body className="bg-obsidian text-white min-h-screen antialiased">
         {mounted && appId ? (
           <PrivyProvider
             appId={appId}
