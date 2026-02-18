@@ -20,8 +20,9 @@ interface PrivyAuthProps {
 }
 
 export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
-  const { login, logout, user, isLoginInProgress, ready } =
+  const { login, logout, user, ready } =
     usePrivy();
+  const isLoginInProgress = false; // Privy handles this internally
   const router = useRouter();
   const { login: storeLogin, logout: storeLogout, authState } = useAuthStore();
 
@@ -212,8 +213,10 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
 
 // Compact button for navbar
 export function ConnectButton() {
-  const { login, logout, user, isLoginInProgress, ready } =
+  const { login, logout, user, ready } =
     usePrivy();
+  const isLoginInProgress = false;
+  const router = useRouter();
   const router = useRouter();
   const isAuthenticated = ready && !!user;
 
