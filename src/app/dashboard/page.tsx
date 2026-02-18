@@ -33,8 +33,9 @@ interface TerminalMessage {
 export default function DashboardPage() {
   const { user, ready, logout } = usePrivy();
   const router = useRouter();
-  const { authState, logout: storeLogout } = useAuthStore();
-  const isVerified = user?.isVerified || false;
+  const { authState, logout: storeLogout, user: storeUser } = useAuthStore();
+  // Get isVerified from the store user, fallback to wallet verified status
+  const isVerified = storeUser?.isVerified || user?.wallet?.verified || false;
   const [mounted, setMounted] = useState(false);
   const [accessKey, setAccessKey] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState("02:45:30");
