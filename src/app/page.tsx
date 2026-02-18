@@ -221,13 +221,14 @@ interface StatProps {
   value: string;
   label: string;
   icon: React.ElementType;
+  delay?: number;
 }
 
 function StatCard({ value, label, icon: Icon, delay }: StatProps) {
   return (
     <div
       className="p-6 bg-cyber-panel/50 border border-cyber-border rounded-xl backdrop-blur-sm hover:border-cyber-purple/50 transition-all group"
-      style={{ animationDelay: `${delay}s` }}
+      style={delay !== undefined ? { animationDelay: `${delay}s` } : {}}
     >
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-lg bg-cyber-purple/20 flex items-center justify-center group-hover:bg-cyber-purple/30 transition-colors">
@@ -244,13 +245,14 @@ interface FeatureProps {
   title: string;
   description: string;
   icon: React.ElementType;
+  delay?: number;
 }
 
 function FeatureCard({ title, description, icon: Icon, delay }: FeatureProps) {
   return (
     <div
       className="p-6 bg-cyber-panel/50 border border-cyber-border rounded-xl backdrop-blur-sm hover:border-cyber-purple/50 transition-all hover:-translate-y-1"
-      style={{ animationDelay: `${delay}s` }}
+      style={delay !== undefined ? { animationDelay: `${delay}s` } : {}}
     >
       <div className="w-12 h-12 rounded-lg bg-cyber-purple/20 flex items-center justify-center mb-4">
         <Icon className="w-6 h-6 text-cyber-purple" />
