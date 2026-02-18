@@ -1,27 +1,39 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { useEffect, useState } from "react";
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <html lang="en">
       <body>
-        <PrivyProvider
-          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "demo-app-id"}
-          config={{
-            appearance: {
-              theme: "light",
-              accentColor: "#6760da",
-              logo: "",
-            },
-          }}
-        >
-          {children}
-        </PrivyProvider>
+        {mounted && appId ? (
+          <PrivyProvider
+            appId={appId}
+            config={{
+              appearance: {
+                theme: "light",
+                accentColor: "#6760da",
+                logo: "",
+              },
+            }}
+          >
+            {children}
+          </PrivyProvider>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );
