@@ -1,4 +1,10 @@
+import { clsx, type ClassValue } from "clsx";
+
 // Utility functions for Persuade Me
+
+export function cn(...inputs: ClassValue[]) {
+  return clsx(inputs);
+}
 
 /**
  * Truncate a wallet address for display
