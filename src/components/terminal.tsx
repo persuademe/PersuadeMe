@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Terminal, Cpu, Activity } from "lucide-react";
+import { Terminal as TerminalIcon, Cpu, Activity } from "lucide-react";
 
 interface LogEntry {
   id: string;
@@ -13,7 +13,7 @@ interface LogEntry {
   details?: string;
 }
 
-interface TerminalProps {
+interface TerminalComponentProps {
   logs?: LogEntry[];
   className?: string;
   autoScroll?: boolean;
@@ -27,7 +27,7 @@ export function Terminal({
   autoScroll = true,
   showHeader = true,
   emptyMessage = "Waiting for Agents...",
-}: TerminalProps) {
+}: TerminalComponentProps) {
   const [displayedLogs, setDisplayedLogs] = useState<LogEntry[]>(logs);
   const terminalRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -100,7 +100,7 @@ export function Terminal({
               <div className="w-3 h-3 rounded-full bg-slate-600" />
             </div>
             <div className="flex items-center gap-2 ml-2">
-              <Terminal className="w-4 h-4 text-slate-500" />
+              <TerminalIcon className="w-4 h-4 text-slate-500" />
               <span className="font-mono text-sm text-slate-300">
                 Judge Terminal
               </span>
