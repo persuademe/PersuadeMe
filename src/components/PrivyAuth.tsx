@@ -217,7 +217,6 @@ export function ConnectButton() {
     usePrivy();
   const isLoginInProgress = false;
   const router = useRouter();
-  const router = useRouter();
   const isAuthenticated = ready && !!user;
 
   if (!ready) {
