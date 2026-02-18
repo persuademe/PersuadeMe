@@ -266,6 +266,7 @@ function FeatureCard({ title, description, icon: Icon, delay }: FeatureProps) {
 interface StepProps {
   title: string;
   description: string;
+  index?: number;
 }
 
 function StepCard({ title, description, index }: StepProps) {
