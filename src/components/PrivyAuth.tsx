@@ -20,10 +20,12 @@ interface PrivyAuthProps {
 }
 
 export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
-  const { login, logout, user, isAuthenticated, isLoginInProgress, ready } =
+  const { login, logout, user, isLoginInProgress, ready } =
     usePrivy();
   const router = useRouter();
   const { login: storeLogin, logout: storeLogout, authState } = useAuthStore();
+
+  const isAuthenticated = ready && !!user;
 
   useEffect(() => {
     if (ready && isAuthenticated && user) {
@@ -210,8 +212,10 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
 
 // Compact button for navbar
 export function ConnectButton() {
-  const { login, logout, isAuthenticated, isLoginInProgress, ready, user } =
+  const { login, logout, user, isLoginInProgress, ready } =
     usePrivy();
+  const router = useRouter();
+  const isAuthenticated = ready && !!user;
 
   if (!ready) {
     return (
@@ -256,8 +260,9 @@ export function withAuth<P extends object>(
   requireAuth = true
 ) {
   return function AuthenticatedComponent(props: P) {
-    const { isAuthenticated, ready } = usePrivy();
+    const { user, ready } = usePrivy();
     const router = useRouter();
+    const isAuthenticated = ready && !!user;
 
     useEffect(() => {
       if (ready && requireAuth && !isAuthenticated) {

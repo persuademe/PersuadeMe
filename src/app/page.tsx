@@ -19,7 +19,7 @@ import {
 import { useAuthStore } from "@/lib/store";
 
 export default function LandingPage() {
-  const { isAuthenticated, ready } = usePrivy();
+  const { user, ready } = usePrivy();
   const router = useRouter();
   const { authState } = useAuthStore();
   const [mounted, setMounted] = useState(false);
@@ -27,6 +27,8 @@ export default function LandingPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const isAuthenticated = ready && !!user;
 
   useEffect(() => {
     if (ready && isAuthenticated && authState === "authorized") {
