@@ -80,7 +80,7 @@ export function WalletCard({
               </p>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-white font-mono">
-                  {truncateAddress(address)}
+                  {truncateAddress(address || "")}
                 </p>
                 <button
                   onClick={handleCopy}
