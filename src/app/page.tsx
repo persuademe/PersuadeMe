@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { PrivyAuth } from "@/components/PrivyAuth";
@@ -22,7 +22,6 @@ import {
   Key,
   Terminal as TerminalIcon,
 } from "lucide-react";
-import { useState } from "react";
 import { useAuthStore } from "@/lib/store";
 
 export default function LandingPage() {
