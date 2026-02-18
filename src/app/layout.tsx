@@ -10,7 +10,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmlran64y00550dla1sv0cmwk";
 
   useEffect(() => {
     setMounted(true);
@@ -19,22 +19,18 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-obsidian text-white min-h-screen antialiased">
-        {mounted && appId ? (
-          <PrivyProvider
-            appId={appId}
-            config={{
-              appearance: {
-                theme: "light",
-                accentColor: "#6760da",
-                logo: "",
-              },
-            }}
-          >
-            {children}
-          </PrivyProvider>
-        ) : (
-          children
-        )}
+        <PrivyProvider
+          appId={appId}
+          config={{
+            appearance: {
+              theme: "dark",
+              accentColor: "#10b981",
+              logo: "",
+            },
+          }}
+        >
+          {children}
+        </PrivyProvider>
       </body>
     </html>
   );
