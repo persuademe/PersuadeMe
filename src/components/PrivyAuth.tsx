@@ -195,15 +195,14 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
         <button
           onClick={login}
           disabled={isLoginInProgress}
-          className="group relative flex items-center gap-2 px-6 py-3 bg-cyber-purple/20 border border-cyber-purple/50 rounded-lg text-cyber-purple hover:bg-cyber-purple/30 transition-all overflow-hidden"
+          className="group relative flex items-center justify-center gap-1.5 md:gap-2 w-full md:w-auto px-4 md:px-6 py-2 md:py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-cyber-purple/10 to-cyber-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity" />
           {isLoginInProgress ? (
-            <Loader2 className="w-5 h-5 animate-spin relative z-10" />
+            <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
           ) : (
-            <ShieldCheck className="w-5 h-5 relative z-10" />
+            <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />
           )}
-          <span className="font-mono relative z-10">
+          <span className="font-mono text-xs md:text-sm">
             {isLoginInProgress ? "Connecting..." : "Connect Agent"}
           </span>
         </button>
