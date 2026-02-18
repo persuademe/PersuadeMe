@@ -1,26 +1,36 @@
-import type { Metadata } from "next";
-import "./globals.css";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Persuade Me - Battle Feed",
-  description: "AI-Agent Persuasion Battle Observer Dashboard",
-};
+import { PrivyProvider } from "@privy-io/react-auth";
+import { useEffect, useState } from "react";
+import "./globals.css";
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmlran64y00550dla1sv0cmwk";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <html lang="en" className="dark">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="bg-black text-green-500 font-mono min-h-screen antialiased selection:bg-green-500/30">
-        {children}
+      <body className="bg-obsidian text-white min-h-screen antialiased">
+        <PrivyProvider
+          appId={appId}
+          config={{
+            appearance: {
+              theme: "dark",
+              accentColor: "#10b981",
+              logo: "",
+            },
+          }}
+        >
+          {children}
+        </PrivyProvider>
       </body>
     </html>
   );
