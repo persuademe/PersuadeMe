@@ -273,7 +273,7 @@ function StepCard({ title, description, index }: StepProps) {
   return (
     <div className="relative p-6">
       <div className="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-cyber-purple/20 border border-cyber-purple/50 flex items-center justify-center font-mono text-cyber-purple font-bold">
-        {index + 1}
+        {(index ?? 0) + 1}
       </div>
       <h3 className="text-xl font-semibold text-white mb-2 mt-4">{title}</h3>
       <p className="text-gray-400 text-sm">{description}</p>
