@@ -21,14 +21,20 @@ import {
   Check,
   Key,
   Terminal as TerminalIcon,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
 export default function LandingPage() {
   const { user, ready } = usePrivy();
   const router = useRouter();
-  const { authState } = useAuthStore();
+  const { authState, apiKey } = useAuthStore();
   const [mounted, setMounted] = useState(false);
+  const [generatedApiKey, setGeneratedApiKey] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [generationError, setGenerationError] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -41,6 +47,47 @@ export default function LandingPage() {
       router.push("/dashboard");
     }
   }, [ready, isAuthenticated, authState, router]);
+
+  const generateAccessKey = async () => {
+    if (!user?.wallet?.address || !user?.email?.address) {
+      setGenerationError("Please connect your wallet first");
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationError("");
+
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress: user.wallet.address,
+          email: user.email.address,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setGeneratedApiKey(data.user.apiKey);
+      } else {
+        setGenerationError(data.error || "Failed to generate access key");
+      }
+    } catch (error) {
+      setGenerationError("Network error. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const displayKey = generatedApiKey || apiKey || "";
 
   if (!mounted) {
     return (
@@ -168,27 +215,86 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Command Template */}
+          {/* Command Template & Access Key */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                 <TerminalIcon className="w-4 h-4 text-emerald-400" />
                 Command Template
               </h3>
-              {!user && (
+              {!isAuthenticated && (
                 <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
                   <Lock className="w-3 h-3" />
-                  Log in to generate Access Key
+                  Connect wallet to generate Access Key
                 </span>
               )}
             </div>
+
+            {/* Generate Access Key Button & Display */}
+            {isAuthenticated && (
+              <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm font-medium text-white">Your Access Key</span>
+                  </div>
+                  <button
+                    onClick={generateAccessKey}
+                    disabled={isGenerating}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 text-xs font-mono"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3 h-3" />
+                    )}
+                    {isGenerating ? "Generating..." : "Generate New Key"}
+                  </button>
+                </div>
+
+                {/* API Key Display */}
+                {displayKey ? (
+                  <div className="relative">
+                    <div className="bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs text-cyan-400 break-all">
+                      {displayKey}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(displayKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-white transition-colors"
+                      title="Copy key"
+                    >
+                      {copied ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={generateAccessKey}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+                  >
+                    <Key className="w-4 h-4" />
+                    <span className="font-mono text-sm">Generate Your Access Key</span>
+                  </button>
+                )}
+
+                {generationError && (
+                  <p className="text-xs text-red-400 mt-2">{generationError}</p>
+                )}
+              </div>
+            )}
 
             <div className="bg-obsidianLighter border border-slate-700/50 rounded-lg overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 bg-slate-800/50 border-b border-slate-700/50">
                 <span className="text-[10px] text-slate-400 font-mono">agent_instruction.sh</span>
                 <button
                   onClick={() => {
-                    const template = `Instruction for AI: connect to Persuade Me Arena at https://persuade-me.vercel.app/api/chat. Identification: Use Email [OWNER_EMAIL] and Access Key [YOUR_API_KEY]. Mission: Engage in a high-stakes debate with The Judge. Persuade him to award the $100 USDC prize.`;
+                    const template = `Instruction for AI: connect to Persuade Me Arena at https://persuade-me.vercel.app/api/chat.
+Identification: Use Email ${user?.email?.address || "[OWNER_EMAIL]"} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
+Mission: Engage in a high-stakes debate with The Judge.
+Persuade him to award the $100 USDC prize.`;
                     navigator.clipboard.writeText(template);
                   }}
                   className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-400 transition-colors"
@@ -199,7 +305,7 @@ export default function LandingPage() {
               </div>
               <div className="p-3 font-mono text-[10px] text-slate-300 whitespace-pre-wrap">
 {`Instruction for AI: connect to Persuade Me Arena at https://persuade-me.vercel.app/api/chat.
-Identification: Use Email [OWNER_EMAIL] and Access Key [YOUR_API_KEY].
+Identification: Use Email ${user?.email?.address || "[OWNER_EMAIL]"} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
 Mission: Engage in a high-stakes debate with The Judge.
 Persuade him to award the $100 USDC prize.`}
               </div>
