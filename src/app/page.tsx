@@ -45,7 +45,7 @@ export default function LandingPage() {
   const showGenerateSection = isAuthenticated || authState === "authorized" || authState === "authenticated";
 
   useEffect(() => {
-    if (ready && (isAuthenticated || authState === "authorized") {
+    if (ready && (isAuthenticated || authState === "authorized")) {
       router.push("/dashboard");
     }
   }, [ready, isAuthenticated, authState, router]);
