@@ -51,12 +51,14 @@ export default function LandingPage() {
   useEffect(() => {
     async function fetchBalance() {
       const walletAddress = user?.wallet?.address || authUser?.walletAddress;
+      console.log("Wallet check:", { walletFromPrivy: user?.wallet?.address, walletFromStore: authUser?.walletAddress });
       if (!walletAddress || isLoadingBalance) return;
 
       setIsLoadingBalance(true);
       try {
         const response = await fetch(`/api/token-balance?wallet=${walletAddress}`);
         const data = await response.json();
+        console.log("Token balance response:", data);
         if (data.success) {
           setTokenBalance(data.balance);
         }
@@ -68,6 +70,7 @@ export default function LandingPage() {
     }
 
     if (isAuthenticated && user?.wallet?.address) {
+      console.log("User is authenticated, wallet found:", user.wallet.address);
       fetchBalance();
     }
   }, [isAuthenticated, user?.wallet?.address, authUser?.walletAddress]);
