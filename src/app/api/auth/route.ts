@@ -71,10 +71,16 @@ export async function POST(request: NextRequest) {
       isNewUser: true,
       message: "New user created successfully",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Auth error:", error);
+    
+    // Return more details for debugging
     return NextResponse.json(
-      { error: "Authentication failed" },
+      { 
+        error: "Authentication failed",
+        details: error.message || String(error),
+        code: error.code || 'UNKNOWN'
+      },
       { status: 500 }
     );
   }
