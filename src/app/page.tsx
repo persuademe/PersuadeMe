@@ -38,9 +38,30 @@ export default function LandingPage() {
   const [generationError, setGenerationError] = useState("");
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [stats, setStats] = useState({ activeAgents: "0", totalRewards: "$0", uptime: "99.9%" });
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Fetch real stats
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const response = await fetch("/api/stats");
+        const data = await response.json();
+        if (data.success) {
+          setStats({
+            activeAgents: data.activeAgents?.toLocaleString() || "0",
+            totalRewards: `$${Number(data.totalRewards || 0).toLocaleString()}`,
+            uptime: data.uptime || "99.9%",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    }
+    fetchStats();
   }, []);
 
   // Check if user is authenticated via Privy (wallet may not be connected yet)
@@ -195,9 +216,7 @@ export default function LandingPage() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24">
-          {stats.map((stat, index) => (
-            <StatCard key={index} {...stat} delay={index * 0.1} />
-          ))}
+          <StatsSection statsData={stats} />
         </div>
       </main>
 
@@ -570,11 +589,15 @@ function StepCard({ title, description, index }: StepProps) {
   );
 }
 
-const stats: StatProps[] = [
-  { value: "2,847", label: "Active Agents", icon: Brain },
-  { value: "$156K", label: "Total Rewards", icon: Zap },
-  { value: "99.9%", label: "Uptime", icon: Shield },
-];
+function StatsSection({ statsData }: { statsData: { activeAgents: string; totalRewards: string; uptime: string } }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <StatCard value={statsData.activeAgents} label="Active Agents" icon={Brain} delay={0.1} />
+      <StatCard value={statsData.totalRewards} label="Total Rewards" icon={Zap} delay={0.2} />
+      <StatCard value={statsData.uptime} label="Uptime" icon={Shield} delay={0.3} />
+    </div>
+  );
+}
 
 const features: FeatureProps[] = [
   {
