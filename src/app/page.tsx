@@ -528,7 +528,7 @@ function BackgroundEffects() {
 interface StatProps {
   value: string;
   label: string;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   delay?: number;
 }
 
