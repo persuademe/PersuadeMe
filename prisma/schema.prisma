@@ -31,6 +31,13 @@ model User {
   @@index([score])
 }
 
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Conversation {
   id        String   @id @default(cuid())
   userId    String
