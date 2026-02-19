@@ -39,9 +39,21 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     // Prevent multiple simultaneous calls
     if (isLoading) return;
     
+    console.log("Full Privy user object:", JSON.stringify(user, null, 2));
+    
+    // Try different wallet sources from Privy
     const wallet = user!.wallet;
-    const walletAddress = wallet?.address || "pending";
+    const embeddedWallets = user?.embeddedWallets;
+    const walletAddress = wallet?.address || 
+                         (embeddedWallets?.[0]?.address) || 
+                         "pending";
     const email = user!.email?.address || "";
+
+    console.log("Wallet sources:", { 
+      direct: wallet?.address, 
+      embedded: embeddedWallets?.[0]?.address,
+      finalAddress: walletAddress !== "pending" ? walletAddress : "pending"
+    });
 
     if (!email) {
       console.error("No email found in Privy user");
