@@ -395,6 +395,12 @@ export default function DashboardPage() {
                   <span className="text-xs md:text-sm font-bold text-emerald-400">{authUser?.score || 0}</span>
                 </div>
                 
+                {/* Attempts */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] md:text-xs text-slate-500">Attempts</span>
+                  <span className="text-xs md:text-sm font-bold text-amber-400">{authUser?.attempts || 0}/10</span>
+                </div>
+                
                 {/* Verification */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Verification</span>

@@ -58,6 +58,11 @@ export async function GET() {
         data: { value: newStartTime.toString() },
       });
 
+      // Reset all user attempts to 0 for new session
+      await prisma.user.updateMany({
+        data: { attempts: 0 },
+      });
+
       return NextResponse.json({
         success: true,
         sessionStart: newStartTime,

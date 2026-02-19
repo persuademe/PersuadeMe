@@ -56,6 +56,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check attempt limit (10 attempts per session)
+    const MAX_ATTEMPTS = 10;
+    if (user.attempts >= MAX_ATTEMPTS) {
+      return NextResponse.json(
+        {
+          error: 'Maximum attempts reached',
+          message: 'You have used all 10 persuasion attempts this session.',
+          attemptsRemaining: 0,
+          maxAttempts: MAX_ATTEMPTS,
+          attemptsUsed: user.attempts,
+        },
+        { status: 403 }
+      );
+    }
+
     // Get conversation history for context
     const recentConversations = await prisma.conversation.findMany({
       where: { userId: user.id },
@@ -79,6 +94,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Increment attempts count
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { attempts: user.attempts + 1 },
+    });
+
     // Save judge response
     await prisma.conversation.create({
       data: {
@@ -95,6 +116,9 @@ export async function POST(request: NextRequest) {
       score: judgeResult.score,
       feedback: judgeResult.feedback,
       sessionId: user.id,
+      attemptsRemaining: MAX_ATTEMPTS - (user.attempts + 1),
+      attemptsUsed: user.attempts + 1,
+      maxAttempts: MAX_ATTEMPTS,
       verified: {
         wallet: `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`,
         apiKey: `${user.apiKey.slice(0, 8)}...`,

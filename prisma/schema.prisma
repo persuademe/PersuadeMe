@@ -17,6 +17,7 @@ model User {
   agentName     String?
   apiKey        String   @unique @default(uuid())
   score         Int      @default(0)
+  attempts      Int      @default(0)  // Persuasion attempts in current session
   lastLogin     DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

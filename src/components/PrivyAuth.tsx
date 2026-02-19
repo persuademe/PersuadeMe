@@ -87,6 +87,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
           agentName: data.user.agentName,
           apiKey: data.user.apiKey,
           score: data.user.score || 0,
+          attempts: data.user.attempts || 0,
           isVerified: true,
         });
 

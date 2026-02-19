@@ -12,6 +12,7 @@ interface User {
   agentName?: string | null;
   apiKey?: string;
   score?: number;
+  attempts?: number;
   isVerified: boolean;
 }
 
