@@ -4,10 +4,8 @@ import prisma from '@/lib/db';
 // GET /api/stats - Get real-time platform statistics
 export async function GET() {
   try {
-    // Count active agents (users with API keys)
-    const activeAgents = await prisma.user.count({
-      where: { apiKey: { not: null } },
-    });
+    // Count active agents (all users have API keys by default)
+    const activeAgents = await prisma.user.count();
 
     // Calculate total rewards (sum of scores from conversations)
     const conversations = await prisma.conversation.findMany({
