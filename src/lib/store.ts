@@ -17,6 +17,7 @@ interface AuthStore {
   // State
   authState: AuthState;
   user: User | null;
+  apiKey: string | null;
   isLoading: boolean;
   balance: number;
 
@@ -30,10 +31,11 @@ interface AuthStore {
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthStore>((set, get) => ({
+export const useAuthStore = create<AuthStore>((set) => ({
   // Initial state
   authState: "disconnected",
   user: null,
+  apiKey: null,
   isLoading: false,
   balance: 0,
 
@@ -44,6 +46,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   setBalance: (balance) => set({ balance }),
   setApiKey: (apiKey) =>
     set((state) => ({
+      apiKey,
       user: state.user ? { ...state.user, apiKey } : null,
       authState: apiKey ? "authorized" : "authenticated",
     })),
@@ -51,6 +54,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login: (user) => {
     set({
       user,
+      apiKey: user.apiKey || null,
       authState: user.apiKey ? "authorized" : "authenticated",
     });
   },
@@ -58,6 +62,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   logout: () => {
     set({
       user: null,
+      apiKey: null,
       authState: "disconnected",
       balance: 0,
     });
