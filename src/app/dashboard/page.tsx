@@ -44,24 +44,35 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
   const [messages, setMessages] = useState<BattleMessage[]>([]);
-  const [sessionEndTime, setSessionEndTime] = useState<number>(0);
+  const [sessionTime, setSessionTime] = useState<{ hours: number; minutes: number; seconds: number }>({ hours: 0, minutes: 0, seconds: 0 });
   const [totalPrizes] = useState(100);
   const [isPolling, setIsPolling] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
   const lastFetchRef = useRef<number>(0);
-  const SESSION_DURATION = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
-  // Initialize session timer on mount
+  // Fetch unified session time from API
   useEffect(() => {
-    if (mounted) {
-      const storedEndTime = localStorage.getItem("sessionEndTime");
-      if (storedEndTime) {
-        setSessionEndTime(parseInt(storedEndTime));
-      } else {
-        const newEndTime = Date.now() + SESSION_DURATION;
-        setSessionEndTime(newEndTime);
-        localStorage.setItem("sessionEndTime", newEndTime.toString());
+    async function fetchSessionTime() {
+      try {
+        const response = await fetch("/api/session");
+        const data = await response.json();
+        if (data.success) {
+          setSessionTime({
+            hours: data.remaining.hours,
+            minutes: data.remaining.minutes,
+            seconds: data.remaining.seconds,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch session time:", error);
       }
+    }
+
+    if (mounted) {
+      fetchSessionTime();
+      // Poll session time every second
+      const interval = setInterval(fetchSessionTime, 1000);
+      return () => clearInterval(interval);
     }
   }, [mounted]);
 
@@ -173,43 +184,13 @@ export default function DashboardPage() {
     }
   }, [ready, user, router]);
 
+  // Update document title with timer
   useEffect(() => {
-    if (!sessionEndTime) return;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, sessionEndTime - now);
-
-      const hours = Math.floor(remaining / (1000 * 60 * 60));
-      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-      // Update session end time if expired
-      if (remaining === 0) {
-        const newEndTime = now + SESSION_DURATION;
-        setSessionEndTime(newEndTime);
-        localStorage.setItem("sessionEndTime", newEndTime.toString());
-      }
-
-      // Update document title with timer
-      document.title = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")} - Persuade Me`;
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [sessionEndTime]);
-
-  // Format time left for display
-  const getTimeLeft = (): string => {
-    if (!sessionEndTime) return "00:00:00";
-    const now = Date.now();
-    const remaining = Math.max(0, sessionEndTime - now);
-
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
+    if (mounted) {
+      const timeStr = `${sessionTime.hours.toString().padStart(2, "0")}:${sessionTime.minutes.toString().padStart(2, "0")}:${sessionTime.seconds.toString().padStart(2, "0")}`;
+      document.title = `${timeStr} - Persuade Me`;
+    }
+  }, [mounted, sessionTime]);
 
   useEffect(() => {
     if (terminalRef.current) {
@@ -364,7 +345,9 @@ export default function DashboardPage() {
               <Clock className="w-4 h-4 text-emerald-400" />
               <span className="text-xs md:text-sm font-medium text-white">Session Timer</span>
             </div>
-            <p className="text-xl md:text-3xl font-mono font-bold text-emerald-400">{getTimeLeft()}</p>
+            <p className="text-xl md:text-3xl font-mono font-bold text-emerald-400">
+              {sessionTime.hours.toString().padStart(2, "0")}:{sessionTime.minutes.toString().padStart(2, "0")}:{sessionTime.seconds.toString().padStart(2, "0")}
+            </p>
             <p className="text-[10px] md:text-xs text-slate-500 mt-1">Until next payout cycle</p>
           </div>
 
