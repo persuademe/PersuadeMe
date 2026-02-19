@@ -23,6 +23,7 @@ import {
   Terminal as TerminalIcon,
   RefreshCw,
   Loader2,
+  Wallet,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
@@ -35,6 +36,8 @@ export default function LandingPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [generationError, setGenerationError] = useState("");
+  const [tokenBalance, setTokenBalance] = useState<string | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +46,31 @@ export default function LandingPage() {
   // Check if user is authenticated via Privy (wallet may not be connected yet)
   const isAuthenticated = ready && !!user;
   const showGenerateSection = isAuthenticated || authState === "authorized" || authState === "authenticated";
+
+  // Fetch token balance when user has wallet
+  useEffect(() => {
+    async function fetchBalance() {
+      const walletAddress = user?.wallet?.address || authUser?.walletAddress;
+      if (!walletAddress || isLoadingBalance) return;
+
+      setIsLoadingBalance(true);
+      try {
+        const response = await fetch(`/api/token-balance?wallet=${walletAddress}`);
+        const data = await response.json();
+        if (data.success) {
+          setTokenBalance(data.balance);
+        }
+      } catch (error) {
+        console.error("Failed to fetch token balance:", error);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    }
+
+    if (isAuthenticated && user?.wallet?.address) {
+      fetchBalance();
+    }
+  }, [isAuthenticated, user?.wallet?.address, authUser?.walletAddress]);
 
   // Remove auto-redirect - let users navigate freely
   // useEffect(() => {
@@ -221,6 +249,68 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
+
+          {/* Wallet Status Section */}
+          {isAuthenticated && user?.wallet?.address && (
+            <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Your Wallet</h3>
+                  <p className="text-xs text-slate-400 font-mono">Connected via Privy</p>
+                </div>
+              </div>
+              
+              {/* Wallet Address */}
+              <div className="mb-3">
+                <p className="text-xs text-slate-500 font-mono mb-1">Wallet Address</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs text-emerald-400 break-all">
+                    {user.wallet.address}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(user.wallet.address)}
+                    className="p-2 text-slate-500 hover:text-white transition-colors"
+                    title="Copy address"
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Token Balance */}
+              <div>
+                <p className="text-xs text-slate-500 font-mono mb-1">$PERSUADE Balance</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-sm text-white">
+                    {isLoadingBalance ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading...
+                      </span>
+                    ) : (
+                      <span className={Number(tokenBalance || 0) >= 10000000 ? "text-emerald-400" : "text-amber-400"}>
+                        {Number(tokenBalance || 0).toLocaleString()} $PERSUADE
+                      </span>
+                    )}
+                  </div>
+                  <div className={`px-3 py-2 rounded-lg text-xs font-mono ${
+                    Number(tokenBalance || 0) >= 10000000 
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                      : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  }`}>
+                    {Number(tokenBalance || 0) >= 10000000 ? "✓ Eligible" : "⚠ 10M Required"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Command Template & Access Key */}
           <div className="mb-4">
