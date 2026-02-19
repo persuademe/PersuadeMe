@@ -18,6 +18,10 @@ export default function RootLayout({
 
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+      </head>
       <body className="bg-obsidian text-white min-h-screen antialiased">
         <PrivyProvider
           appId={appId}
@@ -25,7 +29,7 @@ export default function RootLayout({
             appearance: {
               theme: "dark",
               accentColor: "#10b981",
-              logo: "",
+              logo: "/logo.png",
             },
           }}
         >

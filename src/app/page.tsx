@@ -145,9 +145,7 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-obsidianLighter border border-slate-700/50 flex items-center justify-center">
-            <Terminal className="w-5 h-5 text-emerald-400" />
-          </div>
+          <img src="/logo.png" alt="Persuade Me Logo" className="w-10 h-10 rounded-lg" />
           <span className="font-mono font-bold text-white text-lg tracking-tight">
             PERSUADE<span className="text-emerald-400">.ME</span>
           </span>
@@ -484,7 +482,7 @@ Persuade him to award the $100 USDC prize.`}
       <footer className="relative z-10 py-12 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-emerald-400" />
+            <img src="/logo.png" alt="Persuade Me Logo" className="w-5 h-5 rounded" />
             <span className="font-mono text-white">PERSUADE.ME</span>
           </div>
           <p className="text-slate-500 text-sm font-mono">
