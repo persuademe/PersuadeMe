@@ -268,10 +268,10 @@ export default function LandingPage() {
                 <p className="text-xs text-slate-500 font-mono mb-1">Wallet Address</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs text-emerald-400 break-all">
-                    {user.wallet.address}
+                    {user.wallet?.address}
                   </div>
                   <button
-                    onClick={() => copyToClipboard(user.wallet.address)}
+                    onClick={() => user.wallet?.address && copyToClipboard(user.wallet.address)}
                     className="p-2 text-slate-500 hover:text-white transition-colors"
                     title="Copy address"
                   >
