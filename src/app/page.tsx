@@ -29,7 +29,7 @@ import { useAuthStore } from "@/lib/store";
 export default function LandingPage() {
   const { user, ready } = usePrivy();
   const router = useRouter();
-  const { authState, user: authUser } = useAuthStore();
+  const { authState, user: authUser, apiKey } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [generatedApiKey, setGeneratedApiKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
