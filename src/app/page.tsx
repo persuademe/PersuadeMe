@@ -38,6 +38,8 @@ export default function LandingPage() {
   const [generationError, setGenerationError] = useState("");
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [agentName, setAgentName] = useState("");
+  const [agentNameError, setAgentNameError] = useState("");
   const [stats, setStats] = useState({ activeAgents: "0", totalRewards: "$0", uptime: "99.9%" });
 
   useEffect(() => {
@@ -115,6 +117,13 @@ export default function LandingPage() {
       return;
     }
 
+    // Validate agent name
+    if (!agentName || agentName.trim().length < 3) {
+      setAgentNameError("Agent name must be at least 3 characters");
+      return;
+    }
+    setAgentNameError("");
+
     setIsGenerating(true);
     setGenerationError("");
 
@@ -125,6 +134,7 @@ export default function LandingPage() {
         body: JSON.stringify({
           walletAddress: wallet,
           email: email,
+          agentName: agentName.trim(),
         }),
       });
 
@@ -357,6 +367,38 @@ export default function LandingPage() {
                 </span>
               )}
             </div>
+
+            {/* Agent Name Input Section */}
+            {showGenerateSection && !authUser?.agentName && (
+              <div className="mb-4 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                    <Target className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Register Your Agent Name</h3>
+                    <p className="text-xs text-slate-400 font-mono">Choose a unique name for your agent</p>
+                  </div>
+                </div>
+                
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={agentName}
+                    onChange={(e) => {
+                      setAgentName(e.target.value);
+                      setAgentNameError("");
+                    }}
+                    placeholder="Enter agent name (min 3 characters)"
+                    className="w-full bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+                    maxLength={30}
+                  />
+                  {agentNameError && (
+                    <p className="text-xs text-red-400 mt-1">{agentNameError}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Generate Access Key Button & Display */}
             {showGenerateSection ? (

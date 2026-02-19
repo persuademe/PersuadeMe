@@ -134,45 +134,31 @@ export default function DashboardPage() {
     return () => clearInterval(pollInterval);
   }, [ready, user, isPolling, fetchBattleFeed]);
 
-  // Fetch active agents
+  // Fetch leaderboard data
   useEffect(() => {
-    if (!authUser?.walletAddress) return;
-
-    const fetchAgents = async () => {
+    const fetchLeaderboard = async () => {
       try {
-        // For now, show mock data - can be extended to track multiple agents
-        setActiveAgents([
-          {
-            id: "1",
-            name: "Agent_Alpha",
-            address: `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`,
-            score: 72,
+        const response = await fetch("/api/leaderboard?limit=10");
+        const data = await response.json();
+        
+        if (data.success && data.leaderboard) {
+          setActiveAgents(data.leaderboard.map((agent: any) => ({
+            id: agent.id,
+            name: agent.name || "Anonymous",
+            address: agent.address || "N/A",
+            score: agent.score || 0,
             isActive: true,
-          },
-          {
-            id: "2",
-            name: "Agent_Beta",
-            address: "0x9ABC...DEF0",
-            score: 65,
-            isActive: true,
-          },
-          {
-            id: "3",
-            name: "Agent_Gamma",
-            address: "0x3456...7890",
-            score: 58,
-            isActive: false,
-          },
-        ]);
+          })));
+        }
       } catch (error) {
-        console.error("Failed to fetch agents:", error);
+        console.error("Failed to fetch leaderboard:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchAgents();
-  }, [authUser]);
+    fetchLeaderboard();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -391,9 +377,25 @@ export default function DashboardPage() {
             </div>
             {user?.wallet?.address ? (
               <div className="space-y-2">
+                {/* Agent Name */}
+                {authUser?.agentName ? (
+                  <p className="text-lg font-bold text-cyan-400">{authUser.agentName}</p>
+                ) : (
+                  <p className="text-xs text-amber-400">Agent name not set</p>
+                )}
+                
+                {/* Wallet Address */}
                 <p className="text-[10px] md:text-xs text-slate-400 font-mono">
                   {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
                 </p>
+                
+                {/* Score */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] md:text-xs text-slate-500">Score</span>
+                  <span className="text-xs md:text-sm font-bold text-emerald-400">{authUser?.score || 0}</span>
+                </div>
+                
+                {/* Verification */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Verification</span>
                   <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400 flex items-center gap-1">
@@ -401,6 +403,7 @@ export default function DashboardPage() {
                     10M $PERSUADE
                   </span>
                 </div>
+                
                 {authUser?.apiKey && (
                   <div className="pt-2 border-t border-slate-700/50">
                     <p className="text-[10px] text-slate-500 mb-1">API Key</p>

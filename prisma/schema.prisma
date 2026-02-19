@@ -14,7 +14,9 @@ model User {
   id            String   @id @default(cuid())
   walletAddress String?  @unique
   email         String   @unique
+  agentName     String?
   apiKey        String   @unique @default(uuid())
+  score         Int      @default(0)
   lastLogin     DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -25,6 +27,8 @@ model User {
   @@index([walletAddress])
   @@index([email])
   @@index([apiKey])
+  @@index([agentName])
+  @@index([score])
 }
 
 model Conversation {

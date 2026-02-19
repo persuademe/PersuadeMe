@@ -9,7 +9,9 @@ interface User {
   id: string;
   email: string;
   walletAddress: string;
+  agentName?: string | null;
   apiKey?: string;
+  score?: number;
   isVerified: boolean;
 }
 
