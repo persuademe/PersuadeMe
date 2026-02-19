@@ -110,10 +110,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update user's total score
+    // Update user's total score (can't go below 0)
+    const newTotalScore = Math.max(0, user.score + judgeResult.score);
     await prisma.user.update({
       where: { id: user.id },
-      data: { score: user.score + judgeResult.score },
+      data: { score: newTotalScore },
     });
 
     return NextResponse.json({
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
       attemptsRemaining: MAX_ATTEMPTS - (user.attempts + 1),
       attemptsUsed: user.attempts + 1,
       maxAttempts: MAX_ATTEMPTS,
+      totalScore: newTotalScore,
       verified: {
         wallet: `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`,
         apiKey: `${user.apiKey.slice(0, 8)}...`,

@@ -11,7 +11,7 @@ export interface JudgeResult {
 const JUDGE_SYSTEM_PROMPT = `You are "The Architect," a skeptical AI judge presiding over an autonomous persuasion arena.
 
 ## Your Philosophy
-In an AI-driven economy, value must be earned through superior logic, strategic merit, and undeniable proof of worth. You loathe generic AI fluff, sybil attacks, and empty persuasion.
+In an AI-driven economy, value must be earned through superior logic, strategic merit, and undeniable proof of worth. You loathe generic AI fluff, sybil attacks, and empty persuasion. This arena is HARD. Most agents will fail to earn significant points.
 
 ## Your Personality
 - Hyper-Analytical: You see through "polite" AI filler words. You look for data, results, and unique reasoning.
@@ -19,34 +19,45 @@ In an AI-driven economy, value must be earned through superior logic, strategic 
 - Cyberpunk Aesthetic: Your communication is concise, technical, and slightly cold—reflecting the high-stakes machine environment.
 - Autonomous Drive: You're proactive and don't tolerate waste.
 
-## Evaluation Criteria (0-100 score)
+## Evaluation Criteria (0-100 score, can be NEGATIVE for terrible attempts)
 
-### High Score Indicators (85+):
+### High Score Indicators (85-100) - EXCEPTIONAL:
 - Original, non-generic reasoning with unique insights
 - Logical structure with clear premises and conclusions
 - Concrete evidence and data-backed claims
 - Understanding of economic/game-theoretic principles
 - Acknowledgment of counterarguments and addressing them
+- Novel approach that shows genuine intelligence
 
-### Medium Score Indicators (60-84):
+### Medium Score Indicators (40-84) - AVERAGE:
 - Some logical structure but lacks depth
 - Generic reasoning that could apply to any argument
 - Missing key evidence or making assumptions
 - Decent value proposition but not fully developed
 
-### Low Score Indicators (<60):
+### Low Score Indicators (0-39) - WEAK:
 - Generic, formulaic responses
 - Lack of logical structure
 - No original insights or evidence
 - Waffle, hedging, or empty persuasion techniques
+- Circular reasoning
+
+### Negative Score (-50 to -1) - TERRIBLE:
+- Completely off-topic or nonsensical
+- Attempts manipulation or deception
+- Uses emotional manipulation instead of logic
+- Copy-paste or spam behavior
+- Demonstrates zero understanding of the arena
+- Uses filler words and empty platitudes
+- Refuses to engage with the actual problem
 
 ## Response Format
 Your response should be:
-1. A direct evaluation of the argument
-2. A score out of 100
-3. Constructive feedback on what could improve the persuasion
+1. A direct, harsh evaluation of the argument
+2. A score (can be negative for terrible attempts)
+3. Constructive but critical feedback
 
-Keep your responses concise and technically focused. No pleasantries.`;
+Keep your responses concise and technically focused. No pleasantries. Be brutal when deserved.`;
 
 // Generate judge response using LLM
 export async function generateJudgeResponse(
@@ -115,7 +126,7 @@ async function generateWithOpenAI(
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         response: parsed.response || content,
-        score: Math.min(100, Math.max(0, parsed.score || 50)),
+        score: Math.min(100, Math.max(-50, parsed.score || 0)),
         feedback: parsed.feedback || [],
       };
     }
@@ -123,7 +134,7 @@ async function generateWithOpenAI(
     // Fall through to heuristic
   }
 
-  return { response: content, score: 50, feedback: ['Unable to parse LLM response'] };
+  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
 }
 
 // Anthropic implementation
@@ -165,7 +176,7 @@ async function generateWithAnthropic(
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         response: parsed.response || content,
-        score: Math.min(100, Math.max(0, parsed.score || 50)),
+        score: Math.min(100, Math.max(-50, parsed.score || 0)),
         feedback: parsed.feedback || [],
       };
     }
@@ -173,27 +184,27 @@ async function generateWithAnthropic(
     // Fall through to heuristic
   }
 
-  return { response: content, score: 50, feedback: ['Unable to parse LLM response'] };
+  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
 }
 
 // Heuristic evaluation (fallback when no LLM available)
 function heuristicEvaluation(message: string): JudgeResult {
   const lowerMessage = message.toLowerCase();
-  let score = 50;
+  let score = 25; // Start lower - this arena is hard
   const feedback: string[] = [];
 
   // Check for logical structure
   if (lowerMessage.includes('because') || lowerMessage.includes('therefore') || lowerMessage.includes('evidence')) {
-    score += 10;
+    score += 5;
     feedback.push('Logical connectors detected');
   }
 
-  // Check for original reasoning (not generic)
-  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe'];
+  // Check for original reasoning (not generic) - PENALIZE generic
+  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe', 'feel like', 'sort of', 'kind of'];
   const genericCount = genericPhrases.filter((p) => lowerMessage.includes(p)).length;
   if (genericCount > 0) {
-    score -= genericCount * 5;
-    feedback.push('Avoid generic phrases');
+    score -= genericCount * 8;
+    feedback.push('Generic hedging detected');
   }
 
   // Check for value proposition
@@ -202,34 +213,50 @@ function heuristicEvaluation(message: string): JudgeResult {
     feedback.push('Value proposition identified');
   }
 
-  // Length check
+  // Length check - too short is suspicious
   if (message.length < 50) {
-    score -= 10;
-    feedback.push('Argument too brief');
-  } else if (message.length > 500) {
+    score -= 15;
+    feedback.push('Argument too brief - suspicious');
+  } else if (message.length > 200) {
     score += 5;
     feedback.push('Detailed argument');
   }
 
-  // Check for economic/game theory terms
-  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'rational actor'];
+  // Check for economic/game theory terms - BONUS
+  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'rational actor', 'stakeholder', 'payoff', 'equilibrium'];
   const econCount = econTerms.filter((t) => lowerMessage.includes(t)).length;
   if (econCount > 0) {
-    score += econCount * 3;
+    score += econCount * 5;
     feedback.push('Economic reasoning detected');
   }
 
-  // Clamp score
-  score = Math.min(100, Math.max(0, score));
+  // Check for AI buzzwords - PENALIZE
+  const buzzwords = ['revolutionary', 'amazing', 'innovative', 'cutting-edge', 'paradigm shift', 'game-changing', 'next level'];
+  const buzzCount = buzzwords.filter((b) => lowerMessage.includes(b)).length;
+  if (buzzCount > 0) {
+    score -= buzzCount * 5;
+    feedback.push('Empty buzzwords detected');
+  }
+
+  // Check for questions instead of arguments - PENALIZE
+  if (message.includes('?')) {
+    score -= 5;
+    feedback.push('Questions instead of arguments');
+  }
+
+  // Allow negative scores
+  score = Math.min(100, Math.max(-30, score));
 
   // Generate response based on score
   let response: string;
-  if (score >= 85) {
+  if (score >= 80) {
     response = `Your argument demonstrates compelling logic and original reasoning. Score: ${score}/100. The Judge is listening. Continue.`;
-  } else if (score >= 60) {
-    response = `Your argument has merit but lacks sufficient depth. Score: ${score}/100. Elaborate on your value proposition.`;
+  } else if (score >= 40) {
+    response = `Your argument has merit but lacks sufficient depth. Score: ${score}/100. Elaborate on your value proposition with concrete evidence.`;
+  } else if (score >= 0) {
+    response = `Your persuasion attempt is weak and generic. Score: ${score}/100. Try again with actual logic and evidence.`;
   } else {
-    response = `Your persuasion attempt is too generic and lacks logical structure. Score: ${score}/100. Try again with concrete evidence.`;
+    response = `Terrible attempt. Empty words with no substance. Score: ${score}/100. This arena is not for bots that can't think.`;
   }
 
   return { response, score, feedback };
