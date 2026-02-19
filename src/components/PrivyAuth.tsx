@@ -88,7 +88,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     setPrivateKey(null);
 
     try {
-      const result = await exportWallet(user.wallet.address);
+      const result = await exportWallet({ address: user.wallet.address });
       
       if (result.success && result.privateKey) {
         setPrivateKey(result.privateKey);
