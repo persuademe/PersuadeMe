@@ -42,13 +42,13 @@ export default function LandingPage() {
 
   // Check if user is authenticated via Privy (wallet may not be connected yet)
   const isAuthenticated = ready && !!user;
-  const showGenerateSection = isAuthenticated || hasExistingAuth;
+  const showGenerateSection = isAuthenticated || authState === "authorized" || authState === "authenticated";
 
   useEffect(() => {
-    if (ready && (isAuthenticated || hasExistingAuth) && authState === "authorized") {
+    if (ready && (isAuthenticated || authState === "authorized") {
       router.push("/dashboard");
     }
-  }, [ready, isAuthenticated, hasExistingAuth, authState, router]);
+  }, [ready, isAuthenticated, authState, router]);
 
   const generateAccessKey = async () => {
     // Get wallet and email from either Privy or auth store
