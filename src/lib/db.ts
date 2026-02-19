@@ -6,18 +6,18 @@ const globalForPrisma = globalThis as unknown as {
 
 // Construct DATABASE_URL for Supabase with connection pooling
 function getDatabaseUrl(): string {
-  // Priority: explicit DATABASE_URL > POSTGRES_URL > POSTGRES_URL_NON_POOLING
+  // Priority: explicit DATABASE_URL > POSTGRES_URL_NON_POOLING > POSTGRES_URL > POSTGRES_* parts
   if (process.env.DATABASE_URL) {
     return process.env.DATABASE_URL;
   }
 
-  // Vercel + Supabase integration provides these
-  if (process.env.POSTGRES_URL) {
-    return process.env.POSTGRES_URL;
-  }
-
+  // Try non-pooling first (better for Prisma)
   if (process.env.POSTGRES_URL_NON_POOLING) {
     return process.env.POSTGRES_URL_NON_POOLING;
+  }
+
+  if (process.env.POSTGRES_URL) {
+    return process.env.POSTGRES_URL;
   }
 
   // Construct from individual parts (fallback)
@@ -40,6 +40,14 @@ export const prisma =
     datasources: {
       db: {
         url: getDatabaseUrl(),
+      },
+    },
+    // Disable prepared statements for pgbouncer compatibility
+    __internal: {
+      engine: {
+        adapter: {
+          getEngineProtocol: () => "sql",
+        },
       },
     },
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
