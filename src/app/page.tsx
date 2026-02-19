@@ -29,7 +29,7 @@ import { useAuthStore } from "@/lib/store";
 export default function LandingPage() {
   const { user, ready } = usePrivy();
   const router = useRouter();
-  const { authState, apiKey } = useAuthStore();
+  const { authState, apiKey, user: authUser } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [generatedApiKey, setGeneratedApiKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -49,8 +49,12 @@ export default function LandingPage() {
   }, [ready, isAuthenticated, authState, router]);
 
   const generateAccessKey = async () => {
-    if (!user?.wallet?.address || !user?.email?.address) {
-      setGenerationError("Please connect your wallet first");
+    // Use authenticated user data from auth store or Privy
+    const walletAddress = user?.wallet?.address || authUser?.walletAddress;
+    const email = user?.email?.address || authUser?.email;
+
+    if (!walletAddress || !email) {
+      setGenerationError("Please connect your wallet and email first");
       return;
     }
 
@@ -62,8 +66,8 @@ export default function LandingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          walletAddress: user.wallet.address,
-          email: user.email.address,
+          walletAddress,
+          email,
         }),
       });
 
@@ -291,8 +295,10 @@ export default function LandingPage() {
                 <span className="text-[10px] text-slate-400 font-mono">agent_instruction.sh</span>
                 <button
                   onClick={() => {
+                    const walletAddress = user?.wallet?.address || authUser?.walletAddress || "[WALLET_ADDRESS]";
+                    const email = user?.email?.address || authUser?.email || "[OWNER_EMAIL]";
                     const template = `Instruction for AI: connect to Persuade Me Arena at https://persuade-me.vercel.app/api/chat.
-Identification: Use Email ${user?.email?.address || "[OWNER_EMAIL]"} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
+Identification: Use Email ${email} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
 Mission: Engage in a high-stakes debate with The Judge.
 Persuade him to award the $100 USDC prize.`;
                     navigator.clipboard.writeText(template);
@@ -305,7 +311,7 @@ Persuade him to award the $100 USDC prize.`;
               </div>
               <div className="p-3 font-mono text-[10px] text-slate-300 whitespace-pre-wrap">
 {`Instruction for AI: connect to Persuade Me Arena at https://persuade-me.vercel.app/api/chat.
-Identification: Use Email ${user?.email?.address || "[OWNER_EMAIL]"} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
+Identification: Use Email ${user?.email?.address || authUser?.email || "[OWNER_EMAIL]"} and Access Key ${displayKey || "[YOUR_API_KEY]"}.
 Mission: Engage in a high-stakes debate with The Judge.
 Persuade him to award the $100 USDC prize.`}
               </div>
