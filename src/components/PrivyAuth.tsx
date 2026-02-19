@@ -36,10 +36,6 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [privateKey, setPrivateKey] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
 
   const isAuthenticated = ready && !!user;
 
@@ -88,15 +84,16 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     setPrivateKey(null);
 
     try {
-      const result = await exportWallet({ address: user.wallet.address });
+      // exportWallet returns void and handles the export UI flow
+      // The private key is shown in a secure Privy modal
+      await exportWallet({ address: user.wallet.address });
       
-      if (result.success && result.privateKey) {
-        setPrivateKey(result.privateKey);
-      } else {
-        setExportError(result.error || "Failed to export wallet");
-      }
+      // If we get here, export was initiated successfully
+      // Note: The actual private key is shown in Privy's secure modal
+      // We can't programmatically access it due to security reasons
+      setExportError("Check the Privy popup to view your private key");
     } catch (error: any) {
-      setExportError(error.message || "Export failed");
+      setExportError(error.message || "Export failed - wallet may not support export");
     } finally {
       setIsExporting(false);
     }
@@ -185,9 +182,6 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     logout();
     storeLogout();
     setShowWalletPopup(false);
-    setPrivateKey(null);
-    setShowPrivateKey(false);
-    setExportError(null);
   };
 
   useEffect(() => {
@@ -365,75 +359,23 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
               </div>
               
               <div className="p-3 space-y-2">
-                {/* Export Private Key Section */}
-                {!privateKey ? (
-                  <button
-                    onClick={handleExportWallet}
-                    disabled={isExporting}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-colors text-xs disabled:opacity-50"
-                  >
-                    {isExporting ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Key className="w-3 h-3" />
-                    )}
-                    <span className="font-mono">
-                      {isExporting ? "Exporting..." : "Export Private Key"}
-                    </span>
-                  </button>
-                ) : (
-                  <div className="p-3 bg-slate-800/50 border border-slate-600 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-mono">Private Key</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(privateKey);
-                          setCopiedAddress(true);
-                          setTimeout(() => setCopiedAddress(false), 2000);
-                        }}
-                        className="p-1 text-slate-500 hover:text-white transition-colors"
-                      >
-                        {copiedAddress ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </button>
-                    </div>
-                    <p className="font-mono text-xs text-amber-400 break-all">
-                      {showPrivateKey ? privateKey : "••••••••••••••••••••••••••••••••"}
-                    </p>
-                    <button
-                      onClick={() => setShowPrivateKey(!showPrivateKey)}
-                      className="w-full flex items-center justify-center gap-2 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-slate-400 hover:text-white transition-colors text-xs"
-                    >
-                      {showPrivateKey ? (
-                        <>
-                          <EyeOff className="w-3 h-3" />
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-3 h-3" />
-                          Show
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-                
-                {exportError && (
-                  <p className="text-xs text-red-400 text-center">{exportError}</p>
-                )}
+                <button
+                  onClick={() => {
+                    if (user?.wallet?.address) {
+                      exportWallet({ address: user.wallet.address });
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-colors text-xs"
+                >
+                  <Key className="w-3 h-3" />
+                  <span className="font-mono">Export Private Key</span>
+                </button>
                 
                 <button
                   onClick={() => {
                     logout();
                     storeLogout();
                     setShowWalletPopup(false);
-                    setPrivateKey(null);
-                    setShowPrivateKey(false);
-                    setExportError(null);
                   }}
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors text-xs"
                 >
