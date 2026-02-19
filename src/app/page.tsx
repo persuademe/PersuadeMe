@@ -44,11 +44,12 @@ export default function LandingPage() {
   const isAuthenticated = ready && !!user;
   const showGenerateSection = isAuthenticated || authState === "authorized" || authState === "authenticated";
 
-  useEffect(() => {
-    if (ready && (isAuthenticated || authState === "authorized")) {
-      router.push("/dashboard");
-    }
-  }, [ready, isAuthenticated, authState, router]);
+  // Remove auto-redirect - let users navigate freely
+  // useEffect(() => {
+  //   if (ready && (isAuthenticated || authState === "authorized")) {
+  //     router.push("/dashboard");
+  //   }
+  // }, [ready, isAuthenticated, authState, router]);
 
   const generateAccessKey = async () => {
     // Get wallet and email from either Privy or auth store

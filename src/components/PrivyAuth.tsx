@@ -20,9 +20,8 @@ interface PrivyAuthProps {
 }
 
 export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
-  const { login, logout, user, ready } =
-    usePrivy();
-  const isLoginInProgress = false; // Privy handles this internally
+  const { login, logout, user, ready } = usePrivy();
+  const isLoginInProgress = false;
   const router = useRouter();
   const { login: storeLogin, logout: storeLogout, authState } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -37,14 +36,19 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
   }, [ready, isAuthenticated, user]);
 
   async function handleAuthenticate() {
+    // Prevent multiple simultaneous calls
+    if (isLoading) return;
+    
     const wallet = user!.wallet;
-    const walletAddress = wallet?.address || "";
+    const walletAddress = wallet?.address || "pending";
     const email = user!.email?.address || "";
 
     if (!email) {
-      console.error("No email found");
+      console.error("No email found in Privy user");
       return;
     }
+
+    console.log("Authenticating user:", { email, walletAddress: walletAddress !== "pending" ? walletAddress : "pending" });
 
     // Call API even if wallet is not available yet - will create pending user
     setIsLoading(true);
@@ -53,12 +57,14 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          walletAddress: walletAddress || "pending", 
+          walletAddress, 
           email 
         }),
       });
 
       const data = await response.json();
+
+      console.log("Auth API response:", data);
 
       if (data.success) {
         storeLogin({
@@ -70,15 +76,15 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
         });
 
         if (data.isNewUser) {
-          console.log("New user created with API key:", data.user.apiKey);
+          console.log("✅ New user created with API key:", data.user.apiKey);
         } else {
-          console.log("Existing user logged in");
+          console.log("✅ Existing user logged in");
         }
       } else {
-        console.error("Auth failed:", data.error);
+        console.error("❌ Auth failed:", data.error);
       }
     } catch (error) {
-      console.error("Auth error:", error);
+      console.error("❌ Auth error:", error);
     } finally {
       setIsLoading(false);
     }
