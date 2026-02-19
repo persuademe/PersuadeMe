@@ -49,16 +49,18 @@ export default function LandingPage() {
 
   // Fetch token balance when user has wallet
   useEffect(() => {
+    console.log("Privy user object:", JSON.stringify(user, null, 2));
+    console.log("Auth store user:", JSON.stringify(authUser, null, 2));
+    
     async function fetchBalance() {
       const walletAddress = user?.wallet?.address || authUser?.walletAddress;
-      console.log("Wallet check:", { walletFromPrivy: user?.wallet?.address, walletFromStore: authUser?.walletAddress });
+      console.log("Wallet check - Privy:", user?.wallet?.address, "Store:", authUser?.walletAddress);
       if (!walletAddress || isLoadingBalance) return;
 
       setIsLoadingBalance(true);
       try {
         const response = await fetch(`/api/token-balance?wallet=${walletAddress}`);
         const data = await response.json();
-        console.log("Token balance response:", data);
         if (data.success) {
           setTokenBalance(data.balance);
         }
@@ -69,11 +71,11 @@ export default function LandingPage() {
       }
     }
 
-    if (isAuthenticated && user?.wallet?.address) {
-      console.log("User is authenticated, wallet found:", user.wallet.address);
+    if (isAuthenticated && (user?.wallet?.address || authUser?.walletAddress)) {
+      console.log("User is authenticated, fetching balance...");
       fetchBalance();
     }
-  }, [isAuthenticated, user?.wallet?.address, authUser?.walletAddress]);
+  }, [isAuthenticated, user, authUser]);
 
   // Remove auto-redirect - let users navigate freely
   // useEffect(() => {
@@ -233,15 +235,18 @@ export default function LandingPage() {
                 </div>
               </div>
               
-              {/* Wallet Address */}
+              {/* Wallet Address - Use Privy wallet first, fallback to auth store */}
               <div className="mb-3">
                 <p className="text-xs text-slate-500 font-mono mb-1">Wallet Address</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs text-emerald-400 break-all">
-                    {user?.wallet?.address}
+                    {user?.wallet?.address || authUser?.walletAddress || "No wallet found"}
                   </div>
                   <button
-                    onClick={() => user?.wallet?.address && copyToClipboard(user.wallet.address)}
+                    onClick={() => {
+                      const addr = user?.wallet?.address || authUser?.walletAddress;
+                      if (addr) copyToClipboard(addr);
+                    }}
                     className="p-2 text-slate-500 hover:text-white transition-colors"
                     title="Copy address"
                   >
