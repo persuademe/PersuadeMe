@@ -425,7 +425,6 @@ export default function LandingPage() {
                           ...authUser,
                           agentName: agentName.trim(),
                         } as any);
-                        setShowEditAgentName(false);
                       } else {
                         setAgentNameError(data.error || "Failed to save agent name");
                       }
