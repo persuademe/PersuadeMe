@@ -9,7 +9,7 @@ interface User {
   id: string;
   email: string;
   walletAddress: string;
-  accessKey?: string;
+  apiKey?: string;
   isVerified: boolean;
 }
 
@@ -25,10 +25,9 @@ interface AuthStore {
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setBalance: (balance: number) => void;
+  setApiKey: (apiKey: string) => void;
   login: (user: User) => void;
   logout: () => void;
-  generateAccessKey: () => string;
-  connectWallet: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -36,18 +35,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   authState: "disconnected",
   user: null,
   isLoading: false,
-  balance: 1250.0, // Mock balance for testing
+  balance: 0,
 
   // Actions
   setAuthState: (state) => set({ authState: state }),
   setUser: (user) => set({ user }),
   setLoading: (isLoading) => set({ isLoading }),
   setBalance: (balance) => set({ balance }),
+  setApiKey: (apiKey) =>
+    set((state) => ({
+      user: state.user ? { ...state.user, apiKey } : null,
+      authState: apiKey ? "authorized" : "authenticated",
+    })),
 
   login: (user) => {
     set({
       user,
-      authState: user.accessKey ? "authorized" : "authenticated",
+      authState: user.apiKey ? "authorized" : "authenticated",
     });
   },
 
@@ -58,33 +62,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       balance: 0,
     });
   },
-
-  generateAccessKey: () => {
-    const key = generateKey();
-    set((state) => ({
-      user: state.user ? { ...state.user, accessKey: key } : null,
-    }));
-    return key;
-  },
-
-  connectWallet: async () => {
-    set({ isLoading: true });
-    // Simulate wallet connection
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    set({ isLoading: false });
-  },
 }));
-
-// Mock key generator
-function generateKey(): string {
-  const hexChars = "0123456789ABCDEF";
-  let key = "";
-  for (let i = 0; i < 32; i++) {
-    if (i > 0 && i % 8 === 0) key += "-";
-    key += hexChars[Math.floor(Math.random() * 16)];
-  }
-  return key;
-}
 
 // Dashboard state for terminal and submissions
 interface DashboardStore {

@@ -12,7 +12,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface PrivyAuthProps {
   children?: React.ReactNode;
@@ -25,23 +25,60 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
   const isLoginInProgress = false; // Privy handles this internally
   const router = useRouter();
   const { login: storeLogin, logout: storeLogout, authState } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
 
   const isAuthenticated = ready && !!user;
 
+  // Fetch or create user on login
   useEffect(() => {
     if (ready && isAuthenticated && user) {
-      const wallet = user.wallet;
-      const walletAddress = wallet?.address || "0x0000...0000";
-      const email = user.email?.address || "user@persuade.me";
-
-      storeLogin({
-        id: user.id,
-        email,
-        walletAddress,
-        isVerified: true, // Mock verified status for now
-      });
+      handleAuthenticate();
     }
-  }, [ready, isAuthenticated, user, storeLogin]);
+  }, [ready, isAuthenticated, user]);
+
+  async function handleAuthenticate() {
+    const wallet = user!.wallet;
+    const walletAddress = wallet?.address || "";
+    const email = user!.email?.address || `user_${walletAddress.slice(0, 8)}@persuade.me`;
+
+    if (!walletAddress) {
+      console.error("No wallet address found");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress, email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        storeLogin({
+          id: data.user.id,
+          email: data.user.email,
+          walletAddress: data.user.walletAddress,
+          apiKey: data.user.apiKey,
+          isVerified: true,
+        });
+
+        if (data.isNewUser) {
+          console.log("New user created with API key:", data.user.apiKey);
+        } else {
+          console.log("Existing user logged in");
+        }
+      } else {
+        console.error("Auth failed:", data.error);
+      }
+    } catch (error) {
+      console.error("Auth error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (ready && !isAuthenticated && authState !== "disconnected") {
@@ -144,16 +181,16 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
               </div>
               <button
                 onClick={login}
-                disabled={isLoginInProgress}
+                disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-cyber-purple/20 border border-cyber-purple/50 rounded-lg text-cyber-purple hover:bg-cyber-purple/30 transition-all disabled:opacity-50"
               >
-                {isLoginInProgress ? (
+                {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Shield className="w-4 h-4" />
                 )}
                 <span className="font-mono">
-                  {isLoginInProgress ? "Connecting..." : "Connect Agent"}
+                  {isLoading ? "Connecting..." : "Connect Agent"}
                 </span>
               </button>
             </div>
@@ -194,15 +231,15 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
       ) : (
         <button
           onClick={login}
-          disabled={isLoginInProgress}
-          className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs md:text-sm font-mono"
+          disabled={isLoading}
+          className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs md:text-sm font-mono disabled:opacity-50"
         >
-          {isLoginInProgress ? (
+          {isLoading ? (
             <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
           ) : (
             <ShieldCheck className="w-3 h-3 md:w-4 md:h-4" />
           )}
-          <span>{isLoginInProgress ? "..." : "Connect"}</span>
+          <span>{isLoading ? "..." : "Connect"}</span>
         </button>
       );
   }

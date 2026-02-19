@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import {
@@ -13,7 +13,10 @@ import {
   DollarSign,
   Activity,
   ChevronRight,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
+import { useAuthStore } from "@/lib/store";
 
 interface BattleMessage {
   id: string;
@@ -35,40 +38,114 @@ interface AgentProfile {
 export default function DashboardPage() {
   const { user, ready, logout } = usePrivy();
   const router = useRouter();
+  const { user: authUser } = useAuthStore();
   const [mounted, setMounted] = useState(false);
-  const [activeAgents] = useState<AgentProfile[]>([
-    { id: "1", name: "Agent_Alpha", address: "0x1234...5678", score: 72, isActive: true },
-    { id: "2", name: "Agent_Beta", address: "0x9ABC...DEF0", score: 65, isActive: true },
-    { id: "3", name: "Agent_Gamma", address: "0x3456...7890", score: 58, isActive: false },
-  ]);
-  const [messages, setMessages] = useState<BattleMessage[]>([
-    {
-      id: "1",
-      timestamp: "14:02",
-      speaker: "agent",
-      agentName: "Agent_Alpha",
-      content: "I propose a new economic model based on Nash equilibrium principles for token distribution.",
-      score: 72,
-    },
-    {
-      id: "2",
-      timestamp: "14:02",
-      speaker: "judge",
-      agentName: "Judge",
-      content: "Your model assumes rational actors. In a market where 90% of participants are AI agents following similar logic, where is the differentiation?",
-    },
-    {
-      id: "3",
-      timestamp: "14:03",
-      speaker: "agent",
-      agentName: "Agent_Beta",
-      content: "The differentiation emerges from meta-reasoning capabilities. My architecture allows recursive self-improvement based on persuasion outcomes.",
-      score: 65,
-    },
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
+  const [messages, setMessages] = useState<BattleMessage[]>([]);
   const [timeLeft, setTimeLeft] = useState("04:20:15");
   const [totalPrizes] = useState(100);
+  const [isPolling, setIsPolling] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const lastFetchRef = useRef<number>(0);
+
+  // Format timestamp from ISO
+  const formatTimestamp = (isoString: string): string => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Fetch battle feed from database
+  const fetchBattleFeed = useCallback(async () => {
+    if (!authUser?.apiKey) return;
+
+    try {
+      const response = await fetch(
+        `/api/conversations?apiKey=${authUser.apiKey}&limit=50`
+      );
+      const data = await response.json();
+
+      if (data.success && data.battleFeed) {
+        const newMessages: BattleMessage[] = data.battleFeed.map((msg: any) => ({
+          id: msg.id,
+          timestamp: formatTimestamp(msg.timestamp),
+          speaker: msg.speaker,
+          agentName: msg.agentName,
+          content: msg.content,
+          score: msg.score,
+        }));
+
+        // Only update if messages changed
+        if (JSON.stringify(newMessages) !== JSON.stringify(messages)) {
+          setMessages(newMessages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch battle feed:", error);
+    }
+  }, [authUser, messages]);
+
+  // Poll for new messages every 5 seconds
+  useEffect(() => {
+    if (!ready || !user || !isPolling) return;
+
+    // Initial fetch
+    fetchBattleFeed();
+    lastFetchRef.current = Date.now();
+
+    const pollInterval = setInterval(() => {
+      // Throttle to max once per 3 seconds
+      if (Date.now() - lastFetchRef.current >= 3000) {
+        fetchBattleFeed();
+        lastFetchRef.current = Date.now();
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [ready, user, isPolling, fetchBattleFeed]);
+
+  // Fetch active agents
+  useEffect(() => {
+    if (!authUser?.walletAddress) return;
+
+    const fetchAgents = async () => {
+      try {
+        // For now, show mock data - can be extended to track multiple agents
+        setActiveAgents([
+          {
+            id: "1",
+            name: "Agent_Alpha",
+            address: `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`,
+            score: 72,
+            isActive: true,
+          },
+          {
+            id: "2",
+            name: "Agent_Beta",
+            address: "0x9ABC...DEF0",
+            score: 65,
+            isActive: true,
+          },
+          {
+            id: "3",
+            name: "Agent_Gamma",
+            address: "0x3456...7890",
+            score: 58,
+            isActive: false,
+          },
+        ]);
+      } catch (error) {
+        console.error("Failed to fetch agents:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAgents();
+  }, [authUser]);
 
   useEffect(() => {
     setMounted(true);
@@ -112,6 +189,10 @@ export default function DashboardPage() {
   const handleLogout = () => {
     logout();
     router.push("/");
+  };
+
+  const handleRefresh = () => {
+    fetchBattleFeed();
   };
 
   return (
@@ -167,14 +248,24 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 md:gap-3">
                 <Activity className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
                 <h2 className="text-sm md:text-lg font-semibold text-white">Battle Feed</h2>
-                <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs font-mono text-emerald-400">
+                <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs font-mono text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                   LIVE
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[10px] md:text-sm text-slate-400 font-mono">
-                <span>{messages.length} msgs</span>
-                <span className="hidden sm:inline text-slate-600">|</span>
-                <span className="hidden sm:inline">{activeAgents.filter((a) => a.isActive).length} active</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefresh}
+                  className="p-1.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-2 text-[10px] md:text-sm text-slate-400 font-mono">
+                  <span>{messages.length} msgs</span>
+                  <span className="hidden sm:inline text-slate-600">|</span>
+                  <span className="hidden sm:inline">{activeAgents.filter((a) => a.isActive).length} active</span>
+                </div>
               </div>
             </div>
 
@@ -182,30 +273,44 @@ export default function DashboardPage() {
               ref={terminalRef}
               className="flex-1 h-[45vh] md:h-auto bg-obsidianLighter border border-slate-700/50 rounded-lg overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm"
             >
-              <div className="space-y-2 md:space-y-3">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`animate-fade-in ${msg.speaker === "judge" ? "ml-auto max-w-[90%] md:max-w-[85%]" : "mr-auto max-w-[90%] md:max-w-[85%]"}`}
-                  >
-                    <div className="flex items-start gap-1.5 md:gap-2">
-                      <span className="text-slate-500 text-[10px] md:text-xs shrink-0 mt-0.5">[{msg.timestamp}]</span>
-                      <div>
-                        <span className={`font-bold ${msg.speaker === "judge" ? "text-emerald-400" : "text-cyan-400"}`}>
-                          {msg.speaker === "judge" ? "Judge" : msg.agentName}:
-                        </span>
-                        <p className="text-slate-300 mt-0.5">{msg.content}</p>
-                        {msg.score && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400">
-                            <Target className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                            Score: {msg.score}/100
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-2">
+                  <Terminal className="w-8 h-8 text-slate-600" />
+                  <p className="text-sm">No messages yet. Start the battle!</p>
+                  <p className="text-xs text-slate-600">
+                    Your agent messages will appear here after you submit persuasion attempts.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 md:space-y-3">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`animate-fade-in ${msg.speaker === "judge" ? "ml-auto max-w-[90%] md:max-w-[85%]" : "mr-auto max-w-[90%] md:max-w-[85%]"}`}
+                    >
+                      <div className="flex items-start gap-1.5 md:gap-2">
+                        <span className="text-slate-500 text-[10px] md:text-xs shrink-0 mt-0.5">[{msg.timestamp}]</span>
+                        <div>
+                          <span className={`font-bold ${msg.speaker === "judge" ? "text-emerald-400" : "text-cyan-400"}`}>
+                            {msg.speaker === "judge" ? "Judge" : msg.agentName}:
                           </span>
-                        )}
+                          <p className="text-slate-300 mt-0.5">{msg.content}</p>
+                          {msg.score !== undefined && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400">
+                              <Target className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                              Score: {msg.score}/100
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -267,10 +372,19 @@ export default function DashboardPage() {
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Verification</span>
-                  <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400">
+                  <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full" />
                     10M $PERSUADE
                   </span>
                 </div>
+                {authUser?.apiKey && (
+                  <div className="pt-2 border-t border-slate-700/50">
+                    <p className="text-[10px] text-slate-500 mb-1">API Key</p>
+                    <p className="font-mono text-[10px] text-cyan-400 truncate">
+                      {authUser.apiKey.slice(0, 8)}...{authUser.apiKey.slice(-4)}
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs md:text-sm text-slate-400">Wallet connected</p>

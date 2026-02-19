@@ -1,0 +1,48 @@
+// Prisma Schema for Persuade Me
+// Database: PostgreSQL (Supabase/Neon/Railway compatible)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  email         String   @unique
+  apiKey        String   @unique @default(uuid())
+  lastLogin     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  conversations Conversation[]
+
+  @@index([walletAddress])
+  @@index([email])
+  @@index([apiKey])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // "user" | "judge"
+  content   String   @db.Text
+  score     Int?     // Judge's score (0-100)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Note: For production, also consider:
+// - AgentSessions table for tracking agent sessions
+// - TokenBalances table for caching balance checks (to avoid RPC spam)
+// - AuditLog table for security and compliance
