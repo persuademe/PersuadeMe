@@ -110,6 +110,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Update user's total score
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { score: user.score + judgeResult.score },
+    });
+
     return NextResponse.json({
       success: true,
       judgeResponse: judgeResult.response,
