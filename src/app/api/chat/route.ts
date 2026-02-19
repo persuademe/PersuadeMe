@@ -31,11 +31,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if wallet is connected
+    if (!user.walletAddress) {
+      return NextResponse.json(
+        { error: 'Wallet not connected. Please connect your wallet to use the arena.' },
+        { status: 403 }
+      );
+    }
+
     // Verify token balance (skip in development)
     const isDevelopment = process.env.NODE_ENV === 'development';
     const balanceResult = isDevelopment
       ? mockVerifyTokenGate(user.walletAddress)
-      : await verifyTokenGate(user.walletAddress);
+      : await verifyTokenGate(user.walletAddress!);
 
     if (!balanceResult.hasBalance) {
       return NextResponse.json(
