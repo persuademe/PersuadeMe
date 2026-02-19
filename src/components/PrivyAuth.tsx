@@ -43,7 +43,8 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     
     // Try different wallet sources from Privy
     const wallet = user!.wallet;
-    const embeddedWallets = user?.embeddedWallets;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const embeddedWallets = (user as any)?.embeddedWallets;
     const walletAddress = wallet?.address || 
                          (embeddedWallets?.[0]?.address) || 
                          "pending";
