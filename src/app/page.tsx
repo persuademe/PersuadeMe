@@ -403,23 +403,9 @@ export default function LandingPage() {
             {/* Generate Access Key Button & Display */}
             {showGenerateSection ? (
               <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Key className="w-4 h-4 text-cyan-400" />
-                    <span className="text-sm font-medium text-white">Your Access Key</span>
-                  </div>
-                  <button
-                    onClick={generateAccessKey}
-                    disabled={isGenerating}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 text-xs font-mono"
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-3 h-3" />
-                    )}
-                    {isGenerating ? "Generating..." : "Generate New Key"}
-                  </button>
+                <div className="flex items-center gap-2 mb-3">
+                  <Key className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium text-white">Your Access Key</span>
                 </div>
 
                 {/* API Key Display */}
