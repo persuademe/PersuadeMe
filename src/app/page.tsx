@@ -40,7 +40,8 @@ export default function LandingPage() {
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [agentNameError, setAgentNameError] = useState("");
-  const [showEditAgentName, setShowEditAgentName] = useState(false);
+  const [showWalletInfo, setShowWalletInfo] = useState(false);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [stats, setStats] = useState({ activeAgents: "0", totalRewards: "$0", uptime: "99.9%" });
 
   useEffect(() => {
@@ -372,49 +373,74 @@ export default function LandingPage() {
             {/* Agent Name Input Section */}
             {showGenerateSection && !authUser?.agentName && (
               <div className="mb-4 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                      <Target className="w-4 h-4 text-cyan-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">Register Your Agent Name</h3>
-                      <p className="text-xs text-slate-400 font-mono">Choose a unique name for your agent</p>
-                    </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                    <Target className="w-4 h-4 text-cyan-400" />
                   </div>
-                  {authUser?.agentName && (
-                    <button
-                      onClick={() => {
-                        setAgentName(authUser.agentName || "");
-                        setShowEditAgentName(true);
-                      }}
-                      className="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/20 transition-colors text-xs"
-                    >
-                      Edit
-                    </button>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Register Your Agent Name</h3>
+                    <p className="text-xs text-slate-400 font-mono">Choose a unique name for your agent</p>
+                  </div>
+                </div>
+                
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={agentName}
+                    onChange={(e) => {
+                      setAgentName(e.target.value);
+                      setAgentNameError("");
+                    }}
+                    placeholder="Enter agent name (min 3 characters)"
+                    className="w-full bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+                    maxLength={30}
+                  />
+                  {agentNameError && (
+                    <p className="text-xs text-red-400 mt-1">{agentNameError}</p>
                   )}
                 </div>
                 
-                {(showEditAgentName || !authUser?.agentName) && (
-                  <>
-                    <div className="mb-3">
-                      <input
-                        type="text"
-                        value={agentName}
-                        onChange={(e) => {
-                          setAgentName(e.target.value);
-                          setAgentNameError("");
-                        }}
-                        placeholder="Enter agent name (min 3 characters)"
-                        className="w-full bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
-                        maxLength={30}
-                      />
-                      {agentNameError && (
-                        <p className="text-xs text-red-400 mt-1">{agentNameError}</p>
-                      )}
-                    </div>
-                  </>
-                )}
+                <button
+                  onClick={async () => {
+                    if (!agentName || agentName.trim().length < 3) {
+                      setAgentNameError("Agent name must be at least 3 characters");
+                      return;
+                    }
+                    
+                    // Call API to register agent name
+                    try {
+                      const response = await fetch("/api/auth", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          apiKey: authUser?.apiKey,
+                          agentName: agentName.trim(),
+                        }),
+                      });
+                      
+                      const data = await response.json();
+                      if (data.success) {
+                        // Update local state
+                        useAuthStore.getState().login({
+                          ...authUser,
+                          agentName: agentName.trim(),
+                        } as any);
+                        setShowEditAgentName(false);
+                      } else {
+                        setAgentNameError(data.error || "Failed to save agent name");
+                      }
+                    } catch (error) {
+                      setAgentNameError("Network error. Please try again.");
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  <span className="font-mono text-sm">Confirm Agent Name</span>
+                </button>
+                <p className="text-[10px] text-slate-500 mt-2 text-center">
+                  Agent name cannot be changed after confirmation
+                </p>
               </div>
             )}
 

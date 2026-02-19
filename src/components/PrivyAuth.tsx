@@ -10,6 +10,9 @@ import {
   User,
   Loader2,
   Terminal,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { useEffect, useState } from "react";
@@ -25,6 +28,11 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
   const router = useRouter();
   const { login: storeLogin, logout: storeLogout, authState } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [showWalletPopup, setShowWalletPopup] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState<string | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
   const isAuthenticated = ready && !!user;
 
@@ -34,6 +42,36 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
       handleAuthenticate();
     }
   }, [ready, isAuthenticated, user]);
+
+  // Fetch balances when popup opens
+  useEffect(() => {
+    if (showWalletPopup && user?.wallet?.address) {
+      fetchBalances();
+    }
+  }, [showWalletPopup, user]);
+
+  async function fetchBalances() {
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress || isLoadingBalances) return;
+
+    setIsLoadingBalances(true);
+    try {
+      // Fetch $PERSUADE balance
+      const persuadeResponse = await fetch(`/api/token-balance?wallet=${walletAddress}`);
+      const persuadeData = await persuadeResponse.json();
+      if (persuadeData.success) {
+        setTokenBalance(persuadeData.balance);
+      }
+
+      // Fetch USDC balance (placeholder - would need actual API)
+      // For now, show a placeholder
+      setUsdcBalance("0.00");
+    } catch (error) {
+      console.error("Failed to fetch balances:", error);
+    } finally {
+      setIsLoadingBalances(false);
+    }
+  }
 
   async function handleAuthenticate() {
     // Prevent multiple simultaneous calls
@@ -106,6 +144,20 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     }
   }
 
+  const copyAddress = async () => {
+    if (user?.wallet?.address) {
+      await navigator.clipboard.writeText(user.wallet.address);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    storeLogout();
+    setShowWalletPopup(false);
+  };
+
   useEffect(() => {
     if (ready && !isAuthenticated && authState !== "disconnected") {
       storeLogout();
@@ -124,11 +176,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     case "minimal":
       return isAuthenticated ? (
         <button
-          onClick={() => {
-            logout();
-            storeLogout();
-            router.push("/");
-          }}
+          onClick={handleLogout}
           className="flex items-center gap-2 text-cyber-cyan hover:text-cyber-purple transition-colors"
         >
           <LogOut className="w-4 h-4" />
@@ -179,11 +227,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
 
               {/* Actions */}
               <button
-                onClick={() => {
-                  logout();
-                  storeLogout();
-                  router.push("/");
-                }}
+                onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20 transition-all"
               >
                 <LogOut className="w-4 h-4" />
@@ -227,31 +271,103 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     case "button":
     default:
       return isAuthenticated ? (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative">
           {user?.wallet?.address && (
             <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-cyber-panel border border-cyber-border rounded-lg">
               <Wallet className="w-4 h-4 text-cyber-cyan" />
-              <span className="font-mono text-sm text-gray-300">
+              <button
+                onClick={() => setShowWalletPopup(!showWalletPopup)}
+                className="font-mono text-sm text-gray-300 hover:text-white transition-colors"
+              >
                 {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
-              </span>
+              </button>
             </div>
           )}
+          
+          {/* Wallet Info Popup */}
+          {showWalletPopup && (
+            <div className="absolute right-0 top-full mt-2 w-72 bg-obsidianLight border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="p-4 border-b border-slate-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-slate-400 font-mono">Wallet Address</span>
+                  <button
+                    onClick={copyAddress}
+                    className="p-1 text-slate-500 hover:text-white transition-colors"
+                  >
+                    {copiedAddress ? (
+                      <Check className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-cyan-400 break-all">
+                  {user?.wallet?.address}
+                </p>
+              </div>
+              
+              <div className="p-4 border-b border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <span className="text-xs">🔷</span>
+                    </div>
+                    <span className="text-xs text-slate-400">USDC</span>
+                  </div>
+                  <span className="font-mono text-xs text-emerald-400">
+                    {isLoadingBalances ? "..." : `${Number(usdcBalance || 0).toLocaleString()}`}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                      <span className="text-xs">◈</span>
+                    </div>
+                    <span className="text-xs text-slate-400">$PERSUADE</span>
+                  </div>
+                  <span className="font-mono text-xs text-cyan-400">
+                    {isLoadingBalances ? "..." : `${Number(tokenBalance || 0).toLocaleString()}`}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="p-3 space-y-2">
+                <button
+                  onClick={() => {
+                    // Export private key - only works for externally connected wallets
+                    alert("Private key export is only available for externally connected wallets (MetaMask, etc.). For embedded wallets created by Privy, the private key is managed securely by Privy and cannot be exported.");
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-colors text-xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="font-mono">Export Private Key</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    logout();
+                    storeLogout();
+                    setShowWalletPopup(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors text-xs"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span className="font-mono">Disconnect</span>
+                </button>
+              </div>
+            </div>
+          )}
+          
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => {
+              setShowWalletPopup(false);
+              router.push("/dashboard");
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-cyber-cyan/20 border border-cyber-cyan/50 rounded-lg text-cyber-cyan hover:bg-cyber-cyan/30 transition-all"
           >
             <Terminal className="w-4 h-4" />
             <span className="font-mono">Dashboard</span>
-          </button>
-          <button
-            onClick={() => {
-              logout();
-              storeLogout();
-            }}
-            className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-            title="Disconnect"
-          >
-            <LogOut className="w-5 h-5" />
           </button>
         </div>
       ) : (
