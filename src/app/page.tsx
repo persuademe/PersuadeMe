@@ -29,7 +29,7 @@ import { useAuthStore } from "@/lib/store";
 export default function LandingPage() {
   const { user, ready } = usePrivy();
   const router = useRouter();
-  const { authState, apiKey, user: authUser } = useAuthStore();
+  const { authState, user: authUser } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [generatedApiKey, setGeneratedApiKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -40,21 +40,23 @@ export default function LandingPage() {
     setMounted(true);
   }, []);
 
+  // Check if user is authenticated via Privy (wallet may not be connected yet)
   const isAuthenticated = ready && !!user;
+  const showGenerateSection = isAuthenticated || hasExistingAuth;
 
   useEffect(() => {
-    if (ready && isAuthenticated && authState === "authorized") {
+    if (ready && (isAuthenticated || hasExistingAuth) && authState === "authorized") {
       router.push("/dashboard");
     }
-  }, [ready, isAuthenticated, authState, router]);
+  }, [ready, isAuthenticated, hasExistingAuth, authState, router]);
 
   const generateAccessKey = async () => {
-    // Use authenticated user data from auth store or Privy
-    const walletAddress = user?.wallet?.address || authUser?.walletAddress;
+    // Get wallet and email from either Privy or auth store
+    const wallet = user?.wallet?.address || authUser?.walletAddress;
     const email = user?.email?.address || authUser?.email;
 
-    if (!walletAddress || !email) {
-      setGenerationError("Please connect your wallet and email first");
+    if (!wallet || !email) {
+      setGenerationError("Wallet or email not connected. Please reconnect.");
       return;
     }
 
@@ -66,8 +68,8 @@ export default function LandingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          walletAddress,
-          email,
+          walletAddress: wallet,
+          email: email,
         }),
       });
 
@@ -235,7 +237,7 @@ export default function LandingPage() {
             </div>
 
             {/* Generate Access Key Button & Display */}
-            {isAuthenticated && (
+            {showGenerateSection ? (
               <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -287,6 +289,11 @@ export default function LandingPage() {
                 {generationError && (
                   <p className="text-xs text-red-400 mt-2">{generationError}</p>
                 )}
+              </div>
+            ) : (
+              <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl flex items-center justify-center text-slate-400 text-sm">
+                <Lock className="w-4 h-4 mr-2" />
+                Connect wallet to generate Access Key
               </div>
             )}
 

@@ -39,19 +39,23 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
   async function handleAuthenticate() {
     const wallet = user!.wallet;
     const walletAddress = wallet?.address || "";
-    const email = user!.email?.address || `user_${walletAddress.slice(0, 8)}@persuade.me`;
+    const email = user!.email?.address || "";
 
-    if (!walletAddress) {
-      console.error("No wallet address found");
+    if (!email) {
+      console.error("No email found");
       return;
     }
 
+    // Call API even if wallet is not available yet - will create pending user
     setIsLoading(true);
     try {
       const response = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress, email }),
+        body: JSON.stringify({ 
+          walletAddress: walletAddress || "pending", 
+          email 
+        }),
       });
 
       const data = await response.json();
