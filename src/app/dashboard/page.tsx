@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   Terminal,
@@ -200,14 +201,16 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b border-slate-800 bg-obsidianLighter/50 backdrop-blur-sm">
         <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-wrap items-center justify-between gap-3">
-          {/* Logo */}
+          {/* Logo - Clickable to go to main page */}
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-obsidianLighter border border-slate-700/50 flex items-center justify-center">
-              <Terminal className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
-            </div>
-            <span className="font-mono font-bold text-white text-sm md:text-lg tracking-tight">
-              PERSUADE<span className="text-emerald-400">.ME</span>
-            </span>
+            <Link href="/">
+              <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+                <img src="/logo.png" alt="Persuade Me Logo" className="w-8 h-8 md:w-10 md:h-10 rounded-lg" />
+                <span className="font-mono font-bold text-white text-sm md:text-lg tracking-tight">
+                  PERSUADE<span className="text-emerald-400">.ME</span>
+                </span>
+              </div>
+            </Link>
           </div>
 
           {/* Prize Pool */}
