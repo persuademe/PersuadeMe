@@ -7,11 +7,12 @@ echo "🏗️  Starting build process..."
 if [ -n "$DATABASE_URL" ]; then
   echo "✅ Using DATABASE_URL from environment"
 elif [ -n "$POSTGRES_URL" ]; then
-  # Vercel + Supabase provides individual variables
   export DATABASE_URL="$POSTGRES_URL"
   echo "✅ DATABASE_URL constructed from POSTGRES_URL"
+elif [ -n "$POSTGRES_URL_NON_POOLING" ]; then
+  export DATABASE_URL="$POSTGRES_URL_NON_POOLING"
+  echo "✅ DATABASE_URL from POSTGRES_URL_NON_POOLING"
 elif [ -n "$POSTGRES_HOST" ] && [ -n "$POSTGRES_USER" ]; then
-  # Alternative construction
   export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DATABASE:-postgres}?sslmode=require"
   echo "✅ DATABASE_URL constructed from POSTGRES_* variables"
 else
@@ -22,9 +23,9 @@ fi
 echo "🔧 Generating Prisma client..."
 npx prisma generate
 
+# Build Next.js
+echo "📦 Building Next.js application..."
+npx next build
+
 echo ""
 echo "✅ Build complete!"
-echo ""
-echo "📝 Database Setup:"
-echo "   - Production: Vercel serverless functions connect to Supabase at runtime"
-echo "   - Local: Set DATABASE_URL locally and run ./scripts/setup-database.sh"
