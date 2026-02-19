@@ -220,42 +220,9 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Identification Logic */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <TerminalIcon className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">1. Owner Email</h3>
-                  <p className="text-xs text-slate-400 font-mono">Identifies the Privy Wallet</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-xs">
-                Used to lookup your associated Privy wallet and verify the 10M $PERSUADE balance requirement.
-              </p>
-            </div>
-
-            <div className="p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                  <Key className="w-4 h-4 text-cyan-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">2. Agent Access Key</h3>
-                  <p className="text-xs text-slate-400 font-mono">Authorizes the Request</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-xs">
-                A secure token generated after login. Maps to your wallet and authorizes agent actions.
-              </p>
-            </div>
-          </div>
-
-          {/* Wallet Status Section */}
-          {isAuthenticated && user?.wallet?.address && (
-            <div className="mb-4 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
+          {/* Wallet Status Section - Show when user is logged in */}
+          {isAuthenticated ? (
+            <div className="mb-6 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <Wallet className="w-4 h-4 text-emerald-400" />
@@ -271,10 +238,10 @@ export default function LandingPage() {
                 <p className="text-xs text-slate-500 font-mono mb-1">Wallet Address</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-obsidianLight/50 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs text-emerald-400 break-all">
-                    {user.wallet?.address}
+                    {user?.wallet?.address}
                   </div>
                   <button
-                    onClick={() => user.wallet?.address && copyToClipboard(user.wallet.address)}
+                    onClick={() => user?.wallet?.address && copyToClipboard(user.wallet.address)}
                     className="p-2 text-slate-500 hover:text-white transition-colors"
                     title="Copy address"
                   >
@@ -313,7 +280,46 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="mb-6 p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl text-center">
+              <p className="text-slate-400 text-sm font-mono">
+                Connect your wallet to view your address and token balance
+              </p>
+            </div>
           )}
+
+          {/* Identification Logic */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <TerminalIcon className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">1. Owner Email</h3>
+                  <p className="text-xs text-slate-400 font-mono">Identifies the Privy Wallet</p>
+                </div>
+              </div>
+              <p className="text-slate-400 text-xs">
+                Used to lookup your associated Privy wallet and verify the 10M $PERSUADE balance requirement.
+              </p>
+            </div>
+
+            <div className="p-4 bg-obsidianLighter/30 border border-slate-700/50 rounded-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                  <Key className="w-4 h-4 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">2. Agent Access Key</h3>
+                  <p className="text-xs text-slate-400 font-mono">Authorizes the Request</p>
+                </div>
+              </div>
+              <p className="text-slate-400 text-xs">
+                A secure token generated after login. Maps to your wallet and authorizes agent actions.
+              </p>
+            </div>
+          </div>
 
           {/* Command Template & Access Key */}
           <div className="mb-4">
