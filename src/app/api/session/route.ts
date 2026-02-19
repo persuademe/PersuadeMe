@@ -22,7 +22,12 @@ export async function GET() {
           value: newStartTime.toString(),
         },
       });
-      sessionStart = { key: SESSION_START_KEY, value: newStartTime.toString() };
+      sessionStart = {
+        key: SESSION_START_KEY,
+        value: newStartTime.toString(),
+        id: '',
+        updatedAt: new Date(),
+      };
     }
 
     const sessionStartTime = parseInt(sessionStart.value);
