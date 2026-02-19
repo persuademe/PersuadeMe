@@ -13,59 +13,84 @@ export async function GET() {
       where: { key: SESSION_START_KEY },
     });
 
-    // If no session exists, create one
+    const now = Date.now();
+
+    // If no session exists, create one starting from NOW
     if (!sessionStart) {
-      const newStartTime = Date.now();
+      const newStartTime = now;
       await prisma.systemSetting.create({
         data: {
           key: SESSION_START_KEY,
           value: newStartTime.toString(),
         },
       });
-      sessionStart = {
-        key: SESSION_START_KEY,
-        value: newStartTime.toString(),
-        id: '',
-        updatedAt: new Date(),
-      };
+
+      const endTime = newStartTime + SESSION_DURATION;
+      const remaining = endTime - now;
+
+      return NextResponse.json({
+        success: true,
+        sessionStart: newStartTime,
+        sessionEnd: endTime,
+        remainingMs: remaining,
+        remaining: {
+          hours: Math.floor(remaining / (1000 * 60 * 60)),
+          minutes: Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((remaining % (1000 * 60)) / 1000),
+        },
+        isExpired: false,
+      });
     }
 
     const sessionStartTime = parseInt(sessionStart.value);
-    const now = Date.now();
     const endTime = sessionStartTime + SESSION_DURATION;
-    const remaining = Math.max(0, endTime - now);
-    const isExpired = remaining === 0;
+    let remaining = endTime - now;
 
-    // Auto-start new session if expired
-    if (isExpired) {
-      const newStartTime = Date.now();
+    // Check if session has expired
+    if (remaining <= 0) {
+      // Reset session - starts from NOW
+      const newStartTime = now;
+      const newEndTime = newStartTime + SESSION_DURATION;
+      remaining = SESSION_DURATION;
+
       await prisma.systemSetting.update({
         where: { key: SESSION_START_KEY },
         data: { value: newStartTime.toString() },
       });
-    }
 
-    const newEndTime = isExpired ? Date.now() + SESSION_DURATION : endTime;
-    const newRemaining = Math.max(0, newEndTime - now);
+      return NextResponse.json({
+        success: true,
+        sessionStart: newStartTime,
+        sessionEnd: newEndTime,
+        remainingMs: remaining,
+        remaining: {
+          hours: Math.floor(remaining / (1000 * 60 * 60)),
+          minutes: Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((remaining % (1000 * 60)) / 1000),
+        },
+        isExpired: false,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      sessionStart: isExpired ? Date.now() : sessionStartTime,
-      sessionEnd: newEndTime,
-      remainingMs: newRemaining,
+      sessionStart: sessionStartTime,
+      sessionEnd: endTime,
+      remainingMs: remaining,
       remaining: {
-        hours: Math.floor(newRemaining / (1000 * 60 * 60)),
-        minutes: Math.floor((newRemaining % (1000 * 60 * 60)) / (1000 * 60)),
-        seconds: Math.floor((newRemaining % (1000 * 60)) / 1000),
+        hours: Math.floor(remaining / (1000 * 60 * 60)),
+        minutes: Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((remaining % (1000 * 60)) / 1000),
       },
-      isExpired: newRemaining === 0,
+      isExpired: false,
     });
   } catch (error: any) {
     console.error("Session error:", error);
-    // Fallback to memory-based session
+    
+    // Fallback - creates a 6-hour session from now
     const fallbackStart = Date.now();
     const fallbackEnd = fallbackStart + SESSION_DURATION;
-    const fallbackRemaining = Math.max(0, fallbackEnd - Date.now());
+    const fallbackRemaining = fallbackEnd - fallbackStart;
     
     return NextResponse.json({
       success: true,
@@ -77,7 +102,7 @@ export async function GET() {
         minutes: Math.floor((fallbackRemaining % (1000 * 60 * 60)) / (1000 * 60)),
         seconds: Math.floor((fallbackRemaining % (1000 * 60)) / 1000),
       },
-      isExpired: fallbackRemaining === 0,
+      isExpired: false,
       fallback: true,
     });
   }
