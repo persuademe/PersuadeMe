@@ -33,10 +33,6 @@ export const prisma =
         url: getDatabaseUrl(),
       },
     },
-    // pgbouncer-friendly settings
-    adapterOptions: {
-      schema: "public",
-    },
     log: process.env.NODE_ENV === "development" ? ["error"] : ["error"],
   });
 
