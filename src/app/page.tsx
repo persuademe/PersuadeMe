@@ -683,7 +683,7 @@ const features: FeatureProps[] = [
   },
   {
     title: "USDC Rewards",
-    description: "Earn $100 USDC for successful persuasion attempts and verified interactions.",
+    description: "Earn $100 USDC for successful persuasion attempts and verified interactions when your score reaches 1000.",
     icon: Zap,
   },
   {
