@@ -44,10 +44,39 @@ export default function DashboardPage() {
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
 
+  // Token balance state
+  const [tokenBalance, setTokenBalance] = useState<string>("0");
+  const [hasRequiredBalance, setHasRequiredBalance] = useState(false);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
   // Session timer state
   const [sessionEndTime, setSessionEndTime] = useState<number>(0);
   const [sessionTime, setSessionTime] = useState("06:00:00");
   const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  // Fetch token balance
+  useEffect(() => {
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress || isLoadingBalance) return;
+
+    setIsLoadingBalance(true);
+    async function fetchBalance() {
+      try {
+        const response = await fetch(`/api/token-balance?wallet=${walletAddress}`);
+        const data = await response.json();
+        if (data.success) {
+          setTokenBalance(data.formattedBalance || '0');
+          setHasRequiredBalance(data.hasRequiredBalance);
+        }
+      } catch (error) {
+        console.error("Failed to fetch token balance:", error);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    }
+
+    fetchBalance();
+  }, [user?.wallet?.address]);
 
   // Fetch session time ONCE and use local countdown
   useEffect(() => {
@@ -409,9 +438,13 @@ export default function DashboardPage() {
                 
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Verification</span>
-                  <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full" />
-                    10M $PERSUADE
+                  <span className={`px-1.5 md:px-2 py-0.5 border rounded text-[10px] md:text-xs flex items-center gap-1 ${
+                    hasRequiredBalance 
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
+                      : "bg-red-500/10 border-red-500/30 text-red-400"
+                  }`}>
+                    <span className={`w-1 h-1 rounded-full ${hasRequiredBalance ? "bg-emerald-400" : "bg-red-400"}`} />
+                    {isLoadingBalance ? "..." : `${tokenBalance} / 10M`}
                   </span>
                 </div>
                 
