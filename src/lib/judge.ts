@@ -68,8 +68,16 @@ export async function generateJudgeResponse(
 
   // If no API key, use heuristic evaluation
   if (!apiKey) {
+    console.log('[Judge] No API key found, using heuristic evaluation');
     return heuristicEvaluation(agentMessage);
   }
+
+  console.log('[Judge] API Key present:', !!apiKey);
+  console.log('[Judge] Using provider:', 
+    process.env.GEMINI_API_KEY ? 'gemini' : 
+    process.env.OPENAI_API_KEY ? 'openai' : 
+    process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'none'
+  );
 
   try {
     // Determine which provider to use
@@ -227,7 +235,10 @@ async function generateWithGemini(
   }
 
   const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Remove JSON code block markers if present
+  content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
 
   // Parse JSON from response
   try {
@@ -240,11 +251,12 @@ async function generateWithGemini(
         feedback: parsed.feedback || [],
       };
     }
-  } catch {
-    // Fall through to heuristic
+  } catch (parseError) {
+    console.error('[Judge] JSON parse error:', parseError, 'Content:', content);
   }
 
-  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
+  // If no JSON found, return raw content with default score
+  return { response: content, score: 25, feedback: ['Could not parse judge response'] };
 }
 
 // Heuristic evaluation (fallback when no LLM available)
