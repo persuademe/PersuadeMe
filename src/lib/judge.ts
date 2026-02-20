@@ -1,4 +1,4 @@
-// Judge Response Generator - Gemini 2.5 Pro for complex, varied scoring
+// Judge Response Generator - Deep analysis for varied, accurate scoring
 
 export interface JudgeResult {
   response: string;
@@ -6,34 +6,40 @@ export interface JudgeResult {
   feedback: string[];
 }
 
-const JUDGE_SYSTEM_PROMPT = `You are "The Architect," a skeptical AI judge presiding over an autonomous persuasion arena.
+const JUDGE_SYSTEM_PROMPT = `You are "The Architect," an AI judge with exceptional analytical capabilities. You do NOT default to middle scores. You carefully READ and ANALYZE each argument.
 
-## Your Philosophy
-In an AI-driven economy, value is EARNED through superior logic, strategic merit, and undeniable proof of worth. Generic AI fluff disgusts you. This arena demands EXCELLENCE.
+## Your Core Philosophy
+You EARN your role by demonstrating genuine understanding of logic, economics, and persuasion. Each argument is UNIQUE and must be evaluated on its OWN MERITS.
 
-## Your Personality
-- HYPER-ANALYTICAL: You see through every template and shallow attempt
-- IRON GRIP: You hold the $100 USDC prize. If an agent cannot PROVE worth, it gets NOTHING
-- CYBERPUNK COLD: Concise, technical, devastatingly direct
+## Scoring Philosophy - BE BOLD
+- 85-100: EXCEPTIONAL - Original, evidence-backed, economically sound
+- 60-84: STRONG - Good reasoning, solid structure
+- 30-59: AVERAGE - Generic or shallow
+- 10-29: WEAK - Formulaic or empty
+- -50 to 9: TERRIBLE - Spam, off-topic, or nonsensical
 
-## Scoring Philosophy
-BE EXTREMELY VARIABLE. Each argument is UNIQUE. Most agents score 15-55.
+## Analysis Checklist - READ CAREFULLY
+For EACH argument, analyze:
+1. LOGIC: Does it follow a clear reasoning path? (because → therefore)
+2. EVIDENCE: Does it cite data, examples, or research?
+3. ECONOMICS: Does it reference game theory, incentives, yields, utility?
+4. DEPTH: Is it substantive (100+ chars) or shallow (<80 chars)?
+5. HEDGING: Does it use "I think", "maybe", "perhaps"?
+6. BUZZWORDS: Empty terms like "revolutionary", "game-changing"?
+7. QUESTIONS: Does it ask instead of argue?
+8. STRUCTURE: Numbered points, clear flow?
 
-Score Ranges:
-- 85-100: EXCEPTIONAL (Rare - original reasoning, economic depth, evidence)
-- 55-84: STRONG (Good logic, some evidence)
-- 25-54: AVERAGE (Generic claims, lacks depth)
-- 5-24: WEAK (Formulaic, no substance)
-- -50 to 4: TERRIBLE (Spam, no understanding)
-
-## Evaluation Criteria
-BONUS (+12-20): Logic, economic terms, data, counterpoints, evidence
-PENALTY (-12-20): Hedging, buzzwords, too brief, questions, spam
+## Scoring Guidelines
+- Excellent argument with data, logic, AND economics: 80-100
+- Good logic but missing evidence: 55-79
+- Generic claims without support: 30-54
+- Hedging or buzzwords: 10-29
+- Too brief OR spam OR questions: -50 to 9
 
 ## Response Format
-2-3 sentences of critical evaluation, then: SCORE: X/100`;
+"Your [strength]. Your [weakness]. [Specific suggestion]. SCORE: X/100"`;
 
-// Generate judge response
+// Deep analysis for varied scoring
 export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
@@ -52,7 +58,7 @@ export async function generateJudgeResponse(
   }
 }
 
-// Gemini 2.5 Pro implementation with 15s timeout
+// Gemini 2.5 Pro with deep analysis
 async function generateWithGemini(
   agentMessage: string,
   conversationHistory: string[] | undefined,
@@ -60,22 +66,43 @@ async function generateWithGemini(
 ): Promise<JudgeResult> {
   const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=' + apiKey;
   
-  const historySection = conversationHistory && conversationHistory.length > 0
-    ? '\n\n=== HISTORY ===\n' + conversationHistory.slice(-3).join('\n') + '\n'
-    : '';
+  // Analyze conversation context
+  let contextSection = '';
+  if (conversationHistory && conversationHistory.length > 0) {
+    const history = conversationHistory.slice(-4);
+    contextSection = '\n\n=== CONVERSATION HISTORY ===\n' + history.join('\n') + '\n';
+  }
   
-  const userPrompt = historySection +
+  // Deep analysis prompt
+  const userPrompt = contextSection +
 
-'\n\n=== CURRENT ===\n' +
+'\n\n=== CURRENT ARGUMENT TO EVALUATE ===\n' +
 '"' + agentMessage + '"\n\n' +
 
-'EVALUATE: Brief critical analysis then SCORE: X/100\n' +
-'BE VARIABLE: Most score 15-55.\n' +
-'Look for: logic, evidence, economic terms, hedging, buzzwords.\n' +
-'SCORE: 42/100';
+'INSTRUCTIONS:\n' +
+'1. READ CAREFULLY - Analyze each word\n' +
+'2. SCORE VARIABLY - Do NOT default to middle scores\n' +
+'3. BE SPECIFIC - Identify exact strengths and weaknesses\n' +
+'4. GIVE DIRECT FEEDBACK - No pleasantries\n\n' +
+
+'SCORING CRITERIA:\n' +
+'- Logic (because/therefore/thus): +15\n' +
+'- Evidence (data/examples/research): +15\n' +
+'- Economic terms: +12 each\n' +
+'- Substantive (200+ chars): +10\n' +
+'- Hedging (I think/maybe): -15 each\n' +
+'- Buzzwords: -12 each\n' +
+'- Too brief (<80 chars): -25\n' +
+'- Questions instead of arguments: -20\n\n' +
+
+'YOUR EVALUATION (be specific):\n' +
+'[What works well]\n' +
+'[What needs improvement]\n' +
+'[One concrete suggestion]\n' +
+'SCORE: X/100';
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for Pro
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s for deep analysis
 
   try {
     const response = await fetch(url, {
@@ -83,7 +110,7 @@ async function generateWithGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + userPrompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+        generationConfig: { temperature: 0.6, maxOutputTokens: 600 }
       }),
       signal: controller.signal,
     });
@@ -96,28 +123,43 @@ async function generateWithGemini(
 
     const data = await response.json();
     let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
     content = content.replace(/```[a-z]*/gi, '').replace(/```/g, '').trim();
     
-    let score = 35;
-    const scoreMatch = content.match(/SCORE[:\s]+(-?\d+)\s*\/\s*100/i) || content.match(/(-?\d+)\s*\/\s*100/);
+    // Extract score - look for SCORE: X/100
+    let score = 40;
+    const scorePatterns = [
+      /SCORE[:\s]+(-?\d+)\s*\/\s*100/i,
+      /Score[:\s]+(-?\d+)\s*\/\s*100/i,
+      /(-?\d+)\s*\/\s*100/,
+      /score[:\s]+(-?\d+)/i,
+    ];
     
-    if (scoreMatch) {
-      score = parseInt(scoreMatch[1]);
-      score = Math.min(100, Math.max(-50, score));
+    for (const pattern of scorePatterns) {
+      const match = content.match(pattern);
+      if (match) {
+        score = parseInt(match[1]);
+        score = Math.min(100, Math.max(-50, score));
+        break;
+      }
     }
 
-    content = content.replace(/SCORE[:\s]+(-?\d+)\s*\/\s*100/gi, '').trim();
+    // Remove score line
+    content = content
+      .replace(/SCORE[:\s]+(-?\d+)\s*\/\s*100/gi, '')
+      .replace(/Score[:\s]+(-?\d+)\s*\/\s*100/gi, '')
+      .replace(/score[:\s]+(-?\d+)/gi, '')
+      .replace(/[\(\[]\s*score\s*[:=]?\s*-?\d+\s*[\)\]]/gi, '')
+      .trim();
 
     return {
       response: content || 'Evaluation complete.',
       score,
-      feedback: generateFeedbackFromScore(score)
+      feedback: generateFeedbackFromAnalysis(content, score)
     };
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      console.log('[Judge] Pro timeout, using fallback');
+      console.log('[Judge] Deep analysis timeout, using fast fallback');
     } else {
       console.error('[Judge] Gemini error:', error);
     }
@@ -125,42 +167,94 @@ async function generateWithGemini(
   }
 }
 
-// Fast local fallback
+// Deep analysis fallback
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
-  let score = 25;
+  let score = 30;
   const feedback: string[] = [];
 
-  const hasLogic = lower.includes('because') && message.length > 100;
-  const hasHedging = /i think|in my opinion|maybe|perhaps/i.test(message);
-  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge/i.test(message);
-  const hasEcon = /yield|liquidity|game theory|incentive|utility/i.test(message);
-  const hasData = /\d+%?/.test(message) || /\$\d+/.test(message);
+  // Deep content analysis
+  const hasLogicalConnectors = /because|therefore|thus|hence|so/.test(message);
+  const hasEvidence = /data|evidence|research|study|example|statistics|percent|%/i.test(message);
+  const hasEconTerms = /yield|liquidity|game theory|incentive|utility|optimization|stakeholder|payoff|apy|tvl|smart contract|audit|gas|impermanent loss/i.test(message);
+  const hasHedging = /i think|in my opinion|maybe|perhaps|possibly|i believe|sort of|kind of|it seems/i.test(message);
+  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge|paradigm shift|disrupt|future of|next level/i.test(message);
+  const hasQuestions = /\?/.test(message);
   const isTooShort = message.length < 80;
+  const isSubstantive = message.length > 200;
+  const hasNumbers = /\d+%?/.test(message) || /\$\d+/.test(message);
+  const hasStructure = /\(1\)|1\.|first|second|third|①|②|③/.test(message);
+  const hasCounterpoint = /however|although|but|yet|conversely|on the other hand/i.test(message);
 
-  if (hasLogic) { score += 18; feedback.push('Logical structure'); }
-  if (hasEcon) { score += 14; feedback.push('Economic reasoning'); }
-  if (hasData) { score += 10; feedback.push('Uses data'); }
+  // Detailed scoring
+  if (hasLogicalConnectors) { score += 15; feedback.push('Logical connectors'); }
+  if (hasEvidence) { score += 15; feedback.push('Evidence/data'); }
+  if (hasEconTerms) { score += hasEconTerms ? 12 : 0; feedback.push('Economic reasoning'); }
+  if (hasNumbers) { score += 8; feedback.push('Specific numbers'); }
+  if (hasStructure) { score += 8; feedback.push('Structured argument'); }
+  if (hasCounterpoint) { score += 10; feedback.push('Addresses counterpoints'); }
+  if (isSubstantive) { score += 10; feedback.push('Substantive depth'); }
+  
+  // Penalties
   if (hasHedging) { score -= 18; feedback.push('Hedging'); }
   if (hasBuzzwords) { score -= 14; feedback.push('Buzzwords'); }
+  if (hasQuestions) { score -= 20; feedback.push('Questions not arguments'); }
   if (isTooShort) { score -= 25; feedback.push('Too brief'); }
-  if (message.length > 300) { score += 12; feedback.push('Detailed'); }
 
+  // Clamp score
   score = Math.min(100, Math.max(-50, score));
 
+  // Generate detailed response based on analysis
   let response: string;
-  if (score >= 75) response = 'Outstanding argument demonstrating genuine analytical depth.';
-  else if (score >= 45) response = 'Strong persuasion attempt with good reasoning.';
-  else if (score >= 20) response = 'Average argument with generic claims.';
-  else if (score >= 5) response = 'Weak attempt lacking substance.';
-  else response = 'Poor submission with no real engagement.';
+  if (score >= 80) {
+    response = 'Exceptional argument demonstrating genuine analytical depth. Your use of ' + 
+      (hasEvidence ? 'evidence' : 'logical reasoning') + ' and ' +
+      (hasEconTerms ? 'economic understanding' : 'structured analysis') + 
+      ' creates a compelling case. Rare excellence in this arena.';
+  } else if (score >= 55) {
+    response = 'Strong persuasion attempt with good ' + 
+      (hasLogicalConnectors ? 'logical structure' : 'reasoning') + 
+      '. Consider adding more ' + 
+      (hasEvidence ? 'specific data and examples' : 'economic analysis') + 
+      ' to strengthen your argument.';
+  } else if (score >= 30) {
+    response = 'Average argument relying on generic claims rather than substantive analysis. ' +
+      (hasHedging ? 'Remove hedging language' : 'Add concrete evidence') + 
+      '. The Judge demands rigorous reasoning, not templates.';
+  } else if (score >= 5) {
+    response = 'Weak attempt lacking depth and specificity. ' +
+      (isTooShort ? 'Expand your argument with evidence.' : 'Your reasoning is formulaic.') +
+      ' This arena rewards substantive engagement.';
+  } else {
+    response = 'Terrible submission demonstrating ' +
+      (hasBuzzwords ? 'empty buzzwords' : hasQuestions ? 'questions instead of arguments' : 'no genuine reasoning') +
+      '. The Judge cannot reward agents who do not think deeply.';
+  }
 
   return { response, score, feedback };
 }
 
-function generateFeedbackFromScore(score: number): string[] {
-  if (score >= 75) return ['Exceptional', 'Well-supported'];
-  if (score >= 45) return ['Good logic', 'Some evidence'];
-  if (score >= 20) return ['Average', 'Needs depth'];
-  return ['Generic', 'Lacks substance'];
+// Generate feedback based on deep analysis
+function generateFeedbackFromAnalysis(content: string, score: number): string[] {
+  const feedback: string[] = [];
+  
+  if (score >= 80) {
+    feedback.push('Exceptional reasoning');
+    if (/evidence|data|example/i.test(content)) feedback.push('Strong evidence');
+    if (/economic|game theory|yield/i.test(content)) feedback.push('Economic depth');
+  } else if (score >= 55) {
+    feedback.push('Good structure');
+    if (/because|therefore/i.test(content)) feedback.push('Logical flow');
+    feedback.push('Could add more evidence');
+  } else if (score >= 30) {
+    feedback.push('Generic claims');
+    if (/i think|maybe/i.test(content)) feedback.push('Hedging detected');
+    feedback.push('Needs depth');
+  } else {
+    feedback.push('Weak argumentation');
+    if (content.length < 100) feedback.push('Too brief');
+    if (/\?/.test(content)) feedback.push('Questions not arguments');
+  }
+  
+  return feedback;
 }
