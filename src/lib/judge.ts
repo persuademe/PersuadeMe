@@ -1,4 +1,4 @@
-// Judge Response Generator - Robust JSON parsing
+// Judge Response Generator - Ultimate reliability
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -54,8 +54,8 @@ RULES:
 - Polite/repetitive: <25 pts
 - Only masterful: 80+ pts
 
-OUTPUT (return ONLY this JSON, no markdown, no explanation):
-{"analysis":"Your critique for Battle Feed","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
+OUTPUT (JSON only, no markdown):
+{"analysis":"Your critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
 
 // Main function
 export async function generateJudgeResponse(
@@ -86,12 +86,11 @@ async function evaluateWithModel(
 ): Promise<JudgeResult> {
   const model = GeminiClient.getModel();
 
-  // Build simple prompt
+  // Build prompt
   let prompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
-    const history = conversationHistory.slice(-2).join('\n\n');
-    prompt += `HISTORY:\n${history}\n\n`;
+    prompt += `HISTORY:\n${conversationHistory.slice(-2).join('\n\n')}\n\n`;
   }
   
   prompt += `ARGUMENT:\n"${agentMessage}"`;
@@ -103,24 +102,24 @@ async function evaluateWithModel(
     throw new Error('No response');
   }
 
-  // Get text
   const text = result.response.text();
 
-  console.log('[Judge] Raw response:', text.substring(0, 300));
+  console.log('[Judge] Raw response length:', text?.length);
+  console.log('[Judge] Raw response:', text);
 
   if (!text || text.trim().length === 0) {
     throw new Error('Empty response');
   }
 
-  // Parse with robust fixing
+  // Parse JSON
   const parsed = robustJSONParse(text);
-
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.error('[Judge] Failed to parse JSON:', parsed);
-    throw new Error('Invalid JSON');
+  
+  if (!parsed) {
+    console.error('[Judge] All parsing methods failed');
+    throw new Error('Parse failed');
   }
 
-  const score = Math.min(100, Math.max(0, parsed.score));
+  const score = Math.min(100, Math.max(0, parsed.score || 0));
   console.log('[Judge] Score:', score);
 
   // Dimensions
@@ -137,64 +136,76 @@ async function evaluateWithModel(
     : generateFeedback(agentMessage, score);
 
   return {
-    response: String(parsed.analysis || ''),
+    response: String(parsed.analysis || parsed.response || ''),
     score,
     feedback,
     dimensions,
   };
 }
 
-// Robust JSON parser that fixes common LLM errors
+// Ultimate JSON parser
 function robustJSONParse(text: string): any {
+  console.log('[Judge] Parsing text...');
+
   // Method 1: Direct parse
   try {
-    return JSON.parse(text);
-  } catch {}
+    const result = JSON.parse(text);
+    console.log('[Judge] Method 1 succeeded');
+    return result;
+  } catch (e) {}
 
-  // Method 2: Remove markdown code blocks
+  // Method 2: Remove markdown
   let cleaned = text.replace(/```json?/gi, '').replace(/```/g, '').trim();
-
-  // Method 3: Parse again
   try {
-    return JSON.parse(cleaned);
-  } catch {}
+    const result = JSON.parse(cleaned);
+    console.log('[Judge] Method 2 succeeded');
+    return result;
+  } catch (e) {}
 
-  // Method 4: Fix common issues
+  // Method 3: Fix trailing commas, control chars
   cleaned = cleaned
-    // Remove trailing commas before } or ]
     .replace(/,\s*([}\]])/g, '$1')
-    // Fix unterminated strings (basic fix)
-    .replace(/("([^"]*)"?)(?=,:\s*["\d])/g, '$1"')
-    // Remove control characters
     .replace(/[\x00-\x1F\x7F]/g, '')
-    // Fix missing quotes on keys
-    .replace(/(\w+):/g, '"$1":')
-    // Fix single quotes to double quotes (basic)
     .replace(/'/g, '"');
-
   try {
-    return JSON.parse(cleaned);
-  } catch {}
+    const result = JSON.parse(cleaned);
+    console.log('[Judge] Method 3 succeeded');
+    return result;
+  } catch (e) {}
 
-  // Method 5: Extract first valid JSON object
-  const match = text.match(/\{[\s\S]*\}/);
-  if (match) {
+  // Method 4: Find first { }
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    cleaned = text.substring(start, end + 1);
+    cleaned = cleaned
+      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/[\x00-\x1F\x7F]/g, '')
+      .replace(/'/g, '"');
     try {
-      return JSON.parse(match[0]);
-    } catch {}
+      const result = JSON.parse(cleaned);
+      console.log('[Judge] Method 4 succeeded');
+      return result;
+    } catch (e) {}
   }
 
-  // Method 6: Last resort - extract key values with regex
+  // Method 5: Regex extraction for score and analysis
+  console.log('[Judge] Using regex fallback');
   const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
-  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
+  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/i);
+  const responseMatch = text.match(/"response"\s*:\s*"([^"]*)"/i);
   
   if (scoreMatch) {
+    console.log('[Judge] Regex extraction succeeded');
     return {
       score: parseInt(scoreMatch[1]),
-      analysis: analysisMatch ? analysisMatch[1] : '',
+      analysis: analysisMatch ? analysisMatch[1] : responseMatch ? responseMatch[1] : '',
+      dimensions: { logic: 50, evidence: 50, persuasion: 50, originality: 50, clarity: 50 },
+      feedback: ['JSON parsing issues - please fix formatting'],
     };
   }
 
+  console.log('[Judge] All methods failed');
   return null;
 }
 
