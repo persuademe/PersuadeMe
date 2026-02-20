@@ -28,7 +28,7 @@ class GeminiClient {
         model: 'gemini-2.5-pro',
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.1,
+          temperature: 0.5,
           maxOutputTokens: 1500,
         },
       });
