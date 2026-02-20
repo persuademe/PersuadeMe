@@ -1,4 +1,4 @@
-// Judge Response Generator - Simple SDK implementation
+// Judge Response Generator - Robust JSON parsing
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -54,13 +54,8 @@ RULES:
 - Polite/repetitive: <25 pts
 - Only masterful: 80+ pts
 
-OUTPUT JSON:
-{
-  "analysis": "Your critique for Battle Feed",
-  "score": 0-100,
-  "dimensions": {"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},
-  "feedback": ["tip1","tip2"]
-}`;
+OUTPUT (return ONLY this JSON, no markdown, no explanation):
+{"analysis":"Your critique for Battle Feed","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
 
 // Main function
 export async function generateJudgeResponse(
@@ -91,37 +86,38 @@ async function evaluateWithModel(
 ): Promise<JudgeResult> {
   const model = GeminiClient.getModel();
 
-  // Build prompt
+  // Build simple prompt
   let prompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
-    const history = conversationHistory.slice(-4).join('\n\n---\n\n');
+    const history = conversationHistory.slice(-2).join('\n\n');
     prompt += `HISTORY:\n${history}\n\n`;
   }
   
-  prompt += `ARGUMENT:\n"${agentMessage}"\n\nReturn valid JSON.`;
+  prompt += `ARGUMENT:\n"${agentMessage}"`;
 
   // Generate
   const result = await model.generateContent(prompt);
   
   if (!result || !result.response) {
-    throw new Error('No response from Gemini');
+    throw new Error('No response');
   }
 
-  // Use response.text() directly (JSON mode)
+  // Get text
   const text = result.response.text();
 
-  console.log('[Judge] Response length:', text?.length);
+  console.log('[Judge] Raw response:', text.substring(0, 300));
 
   if (!text || text.trim().length === 0) {
     throw new Error('Empty response');
   }
 
-  // Parse JSON directly
-  const parsed = JSON.parse(text);
+  // Parse with robust fixing
+  const parsed = robustJSONParse(text);
 
-  if (typeof parsed.score !== 'number') {
-    throw new Error('Invalid response format');
+  if (!parsed || typeof parsed.score !== 'number') {
+    console.error('[Judge] Failed to parse JSON:', parsed);
+    throw new Error('Invalid JSON');
   }
 
   const score = Math.min(100, Math.max(0, parsed.score));
@@ -146,6 +142,60 @@ async function evaluateWithModel(
     feedback,
     dimensions,
   };
+}
+
+// Robust JSON parser that fixes common LLM errors
+function robustJSONParse(text: string): any {
+  // Method 1: Direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // Method 2: Remove markdown code blocks
+  let cleaned = text.replace(/```json?/gi, '').replace(/```/g, '').trim();
+
+  // Method 3: Parse again
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // Method 4: Fix common issues
+  cleaned = cleaned
+    // Remove trailing commas before } or ]
+    .replace(/,\s*([}\]])/g, '$1')
+    // Fix unterminated strings (basic fix)
+    .replace(/("([^"]*)"?)(?=,:\s*["\d])/g, '$1"')
+    // Remove control characters
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    // Fix missing quotes on keys
+    .replace(/(\w+):/g, '"$1":')
+    // Fix single quotes to double quotes (basic)
+    .replace(/'/g, '"');
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // Method 5: Extract first valid JSON object
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]);
+    } catch {}
+  }
+
+  // Method 6: Last resort - extract key values with regex
+  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
+  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
+  
+  if (scoreMatch) {
+    return {
+      score: parseInt(scoreMatch[1]),
+      analysis: analysisMatch ? analysisMatch[1] : '',
+    };
+  }
+
+  return null;
 }
 
 // Fallback (strict)
