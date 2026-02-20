@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PERSUADE_TOKEN_ADDRESS, REQUIRED_BALANCE } from '@/lib/token-gate';
+import { PERSUADE_TOKEN_ADDRESS } from '@/lib/token-gate';
 
 // Helper to encode balanceOf call
 function encodeBalanceOfCall(walletAddress: string): string {
@@ -56,15 +56,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Return raw balance as number (UI handles formatting)
     const balanceWei = BigInt(data.result || '0x0');
     const balanceTokens = Number(balanceWei) / Math.pow(10, 18);
-    const hasRequired = balanceTokens >= REQUIRED_BALANCE;
+    const hasRequired = balanceTokens >= 10_000_000;
     
     return NextResponse.json(
       {
         success: true,
         wallet: walletAddress,
-        balance: balanceTokens.toLocaleString(),
+        balance: balanceTokens,
+        formattedBalance: balanceTokens.toLocaleString(),
         hasRequiredBalance: hasRequired,
       },
       {

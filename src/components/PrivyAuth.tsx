@@ -63,7 +63,8 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
       const persuadeResponse = await fetch(`/api/token-balance?wallet=${walletAddress}`);
       const persuadeData = await persuadeResponse.json();
       if (persuadeData.success) {
-        setTokenBalance(persuadeData.balance);
+        // Use formattedBalance from API (avoids NaN from commas)
+        setTokenBalance(persuadeData.formattedBalance || '0');
       }
 
       // Fetch USDC balance (placeholder - would need actual API)
@@ -329,7 +330,7 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
                     <span className="text-xs text-slate-400">$PERSUADE</span>
                   </div>
                   <span className="font-mono text-xs text-cyan-400">
-                    {isLoadingBalances ? "..." : `${Number(tokenBalance || 0).toLocaleString()}`}
+                    {isLoadingBalances ? "..." : tokenBalance || '0'}
                   </span>
                 </div>
               </div>
