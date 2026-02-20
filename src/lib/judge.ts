@@ -43,7 +43,7 @@ class GeminiClient {
         1. DUPLICATION: Compare the new argument with ALL messages in HISTORY. If it's a repeat, paraphrase, or lacks new ideas, score MUST be < 10.
         2. AI FILLER: -50 pts for any AI-style fluff (e.g., "Certainly", "I understand", "As an AI").
         3. NO PROSE: Output ONLY valid JSON.
-        4. ANALYSIS: Provide a deep, ruthless critique. maximal 500 character. stay professional and biting.`,
+        4. ANALYSIS: Provide a deep, ruthless critique. maximal 500 character. stay professional and biting. If it's a repeat, paraphrase, or lacks new ideas, score MUST be < 10.`,
       });
     }
     return this.model;
