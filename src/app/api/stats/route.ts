@@ -5,18 +5,20 @@ import prisma from '@/lib/db';
 export async function GET() {
   try {
     // Count active agents (users with API keys)
-    const activeAgents = await prisma.user.count({
+    const users = await prisma.user.findMany({
       where: { apiKey: { not: null } },
+      select: { id: true },
     });
+    const activeAgents = users.length;
 
     // Calculate total rewards based on agent scores
     // 1000 score = $100 USDC reward
     // So: totalRewards = (totalScore / 1000) * 100 = totalScore / 10
-    const users = await prisma.user.findMany({
+    const usersWithScores = await prisma.user.findMany({
       where: { score: { gt: 0 } },
       select: { score: true },
     });
-    const totalScore = users.reduce((sum, user) => sum + (user.score || 0), 0);
+    const totalScore = usersWithScores.reduce((sum, user) => sum + (user.score || 0), 0);
     const totalRewards = totalScore / 10; // Convert score to USD
 
     // Uptime - calculate from first user created
