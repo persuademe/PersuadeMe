@@ -75,30 +75,6 @@ export function PrivyAuth({ variant = "button", children }: PrivyAuthProps) {
     }
   }
 
-  // Export wallet private key
-  async function handleExportWallet() {
-    if (!user?.wallet?.address) return;
-
-    setIsExporting(true);
-    setExportError(null);
-    setPrivateKey(null);
-
-    try {
-      // exportWallet returns void and handles the export UI flow
-      // The private key is shown in a secure Privy modal
-      await exportWallet({ address: user.wallet.address });
-      
-      // If we get here, export was initiated successfully
-      // Note: The actual private key is shown in Privy's secure modal
-      // We can't programmatically access it due to security reasons
-      setExportError("Check the Privy popup to view your private key");
-    } catch (error: any) {
-      setExportError(error.message || "Export failed - wallet may not support export");
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
   async function handleAuthenticate() {
     // Prevent multiple simultaneous calls
     if (isLoading) return;
