@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenBalance } from '@/lib/token-gate';
+import { PERSUADE_TOKEN_ADDRESS, REQUIRED_BALANCE } from '@/lib/token-gate';
+
+// Helper to encode balanceOf call
+function encodeBalanceOfCall(walletAddress: string): string {
+  const methodId = '0x70a08231'; // balanceOf(address)
+  const paddedAddress = walletAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+  return methodId + paddedAddress;
+}
 
 // GET /api/token-balance - Get $PERSUADE token balance for a wallet
 export async function GET(request: NextRequest) {
@@ -13,20 +20,59 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const rpcUrl = process.env.RPC_URL;
+
+  if (!rpcUrl || !PERSUADE_TOKEN_ADDRESS) {
+    return NextResponse.json(
+      { error: "Server configuration error" },
+      { status: 500 }
+    );
+  }
+
   try {
-    console.log('[TokenBalance] Fetching balance for:', walletAddress);
-    
-    const balance = await getTokenBalance(walletAddress);
-    const hasRequiredBalance = BigInt(balance) >= BigInt(10_000_000);
-    
-    console.log('[TokenBalance] Balance:', balance, 'Has required:', hasRequiredBalance);
-    
-    return NextResponse.json({
-      success: true,
-      wallet: walletAddress,
-      balance,
-      hasRequiredBalance,
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_call',
+        params: [
+          {
+            to: PERSUADE_TOKEN_ADDRESS,
+            data: encodeBalanceOfCall(walletAddress),
+          },
+          'latest',
+        ],
+      }),
     });
+
+    const data = await response.json();
+    
+    if (data.error) {
+      return NextResponse.json(
+        { error: "RPC error" },
+        { status: 500 }
+      );
+    }
+
+    const balanceWei = BigInt(data.result || '0x0');
+    const balanceTokens = Number(balanceWei) / Math.pow(10, 18);
+    const hasRequired = balanceTokens >= REQUIRED_BALANCE;
+    
+    return NextResponse.json(
+      {
+        success: true,
+        wallet: walletAddress,
+        balance: balanceTokens.toLocaleString(),
+        hasRequiredBalance: hasRequired,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error("Token balance check error:", error);
     return NextResponse.json(

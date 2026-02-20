@@ -8,8 +8,8 @@ export interface TokenGateResult {
 }
 
 // Token configuration
-const PERSUADE_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_PERSUADE_TOKEN_ADDRESS?.toLowerCase() || '';
-const REQUIRED_BALANCE = BigInt(10_000_000); // 10M tokens (assuming 18 decimals)
+export const PERSUADE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_PERSUADE_TOKEN_ADDRESS || '').trim().toLowerCase();
+export const REQUIRED_BALANCE = 10_000_000; // 10M tokens
 
 // Format bytes for JSON-RPC request
 function encodeBalanceOfCall(walletAddress: string): string {
@@ -19,12 +19,8 @@ function encodeBalanceOfCall(walletAddress: string): string {
 }
 
 // Fetch balance from RPC endpoint
-async function fetchBalanceFromRpc(rpcUrl: string, walletAddress: string): Promise<bigint | null> {
+async function fetchBalanceFromRpc(rpcUrl: string, walletAddress: string): Promise<string | null> {
   try {
-    console.log('[TokenGate] Fetching balance from RPC:', rpcUrl);
-    console.log('[TokenGate] Token address:', PERSUADE_TOKEN_ADDRESS);
-    console.log('[TokenGate] Wallet address:', walletAddress);
-
     const response = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -43,19 +39,21 @@ async function fetchBalanceFromRpc(rpcUrl: string, walletAddress: string): Promi
     });
 
     const data = await response.json();
-    console.log('[TokenGate] RPC response:', JSON.stringify(data));
-
+    
     if (data.error) {
       console.error('[TokenGate] RPC error:', data.error);
       return null;
     }
 
     const balanceHex = data.result || '0x0';
-    const balance = BigInt(balanceHex);
-    console.log('[TokenGate] Raw balance (wei):', balance.toString());
-    console.log('[TokenGate] Balance (tokens):', (balance / BigInt(10 ** 18)).toString());
-
-    return balance;
+    // Convert hex to decimal string (divide by 10^18 for human readable)
+    const balanceWei = BigInt(balanceHex);
+    const balanceTokens = balanceWei / BigInt(10 ** 18);
+    
+    console.log('[TokenGate] Raw balance (wei):', balanceWei.toString());
+    console.log('[TokenGate] Balance (tokens):', balanceTokens.toString());
+    
+    return balanceTokens.toString();
   } catch (error) {
     console.error('[TokenGate] RPC fetch failed:', error);
     return null;
@@ -67,36 +65,25 @@ export async function verifyTokenGate(walletAddress: string): Promise<TokenGateR
   const rpcUrl = process.env.RPC_URL;
 
   console.log('[TokenGate] Verifying token gate for:', walletAddress);
-  console.log('[TokenGate] Required balance:', REQUIRED_BALANCE.toString());
 
-  if (!rpcUrl) {
-    console.warn('[TokenGate] No RPC URL configured');
-    return { hasBalance: true, balance: '10000000' }; // Allow in development
-  }
-
-  if (!PERSUADE_TOKEN_ADDRESS) {
-    console.warn('[TokenGate] No token address configured');
+  if (!rpcUrl || !PERSUADE_TOKEN_ADDRESS) {
+    console.warn('[TokenGate] Missing config, allowing access');
     return { hasBalance: true, balance: '10000000' };
   }
 
   const balance = await fetchBalanceFromRpc(rpcUrl, walletAddress);
 
   if (balance === null) {
-    return {
-      hasBalance: false,
-      error: 'Unable to verify token balance',
-    };
+    return { hasBalance: false, error: 'Unable to verify token balance' };
   }
 
-  const balanceTokens = balance / BigInt(10 ** 18);
-  const hasBalance = balance >= REQUIRED_BALANCE;
+  const balanceBigInt = BigInt(balance);
+  const requiredBigInt = BigInt(10_000_000);
+  const hasBalance = balanceBigInt >= requiredBigInt;
 
-  console.log('[TokenGate] Final result:', { balance: balanceTokens.toString(), hasBalance });
+  console.log('[TokenGate] Final result:', { balance, hasBalance });
 
-  return {
-    hasBalance,
-    balance: balanceTokens.toString(),
-  };
+  return { hasBalance, balance };
 }
 
 // Mock function for development/testing
@@ -112,10 +99,5 @@ export async function getTokenBalance(walletAddress: string): Promise<string> {
     return '0';
   }
 
-  const balance = await fetchBalanceFromRpc(rpcUrl, walletAddress);
-  if (balance === null) {
-    return '0';
-  }
-
-  return (balance / BigInt(10 ** 18)).toString();
+  return (await fetchBalanceFromRpc(rpcUrl, walletAddress)) || '0';
 }
