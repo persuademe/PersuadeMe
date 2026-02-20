@@ -1,6 +1,4 @@
-// Judge Response Generator - Robust implementation with SDK singleton
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
+// Judge Response Generator - Direct API approach for reliability
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export interface JudgeResult {
@@ -14,39 +12,6 @@ export interface JudgeResult {
     originality: number;
     clarity: number;
   };
-}
-
-// SDK Singleton - Pre-initialized to avoid overhead
-class GeminiClient {
-  private static instance: GoogleGenerativeAI | null = null;
-  private static model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
-
-  static getInstance(): GoogleGenerativeAI {
-    if (!this.instance) {
-      if (!GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY not set');
-      }
-      this.instance = new GoogleGenerativeAI(GEMINI_API_KEY);
-      console.log('[Gemini] SDK initialized');
-    }
-    return this.instance;
-  }
-
-  static getModel() {
-    if (!this.model) {
-      const genAI = this.getInstance();
-      this.model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-pro',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-          maxOutputTokens: 1200,
-        },
-      });
-      console.log('[Gemini] Model loaded');
-    }
-    return this.model;
-  }
 }
 
 const SYSTEM_PROMPT = `You are the "strict Judge" for Persuade Me arena. Cold, elite, rigorous.
@@ -84,7 +49,7 @@ export async function generateJudgeResponse(
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const result = await generateWithModel(agentMessage, conversationHistory);
+      const result = await callGeminiAPI(agentMessage, conversationHistory);
       return result;
     } catch (error) {
       console.error('[Judge] Attempt', attempt, 'error:', error);
@@ -96,84 +61,104 @@ export async function generateJudgeResponse(
   return fallbackHeuristic(agentMessage);
 }
 
-async function generateWithModel(
+async function callGeminiAPI(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
-  const model = GeminiClient.getModel();
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=${GEMINI_API_KEY}`;
 
-  let prompt = SYSTEM_PROMPT + '\n\n';
-  
+  let context = '';
   if (conversationHistory && conversationHistory.length > 0) {
-    prompt += 'Previous: ' + conversationHistory.slice(-2).join(' | ') + '\n\n';
-  }
-  
-  prompt += `ARGUMENT: "${agentMessage}"\n\nReturn valid JSON only.`;
-
-  const result = await model.generateContent(prompt);
-  
-  if (!result || !result.response) {
-    throw new Error('Empty response from Gemini');
+    context = 'Previous: ' + conversationHistory.slice(-2).join(' | ') + '\n\n';
   }
 
-  let text = '';
-  
-  // Try multiple ways to get text
-  const response = result.response;
-  
-  if (typeof response.text === 'function') {
-    text = response.text();
-  } else if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-    text = response.candidates[0].content.parts[0].text;
-  } else if (typeof response === 'string') {
-    text = response;
+  const prompt = `${SYSTEM_PROMPT}\n\n${context}ARGUMENT: "${agentMessage}"\n\nReturn valid JSON only.`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+          maxOutputTokens: 1200,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('[Judge] API error:', response.status, err);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Extract text from Gemini response
+    let text = '';
+    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      text = data.candidates[0].content.parts[0].text;
+    } else if (data.text) {
+      text = data.text;
+    }
+
+    console.log('[Judge] Response length:', text.length);
+
+    if (!text || text.trim().length < 10) {
+      throw new Error('Empty response');
+    }
+
+    // Parse JSON
+    let parsed = parseJSON(text);
+    
+    if (!parsed || typeof parsed.score !== 'number') {
+      console.log('[Judge] Parse failed, trying extraction...');
+      parsed = extractJSON(text);
+    }
+
+    if (!parsed || typeof parsed.score !== 'number') {
+      console.log('[Judge] All JSON methods failed');
+      return fallbackHeuristic(agentMessage);
+    }
+
+    const score = Math.min(100, Math.max(0, parsed.score));
+    console.log('[Judge] Success! Score:', score);
+
+    // Dimensions
+    const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
+      logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
+      evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
+      persuasion: Math.min(100, Math.max(0, parsed.dimensions.persuasion || 50)),
+      originality: Math.min(100, Math.max(0, parsed.dimensions.originality || 50)),
+      clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
+    } : undefined;
+
+    const feedback = Array.isArray(parsed.feedback)
+      ? parsed.feedback.map(String)
+      : generateFallbackFeedback(agentMessage, score);
+
+    return {
+      response: String(parsed.analysis || ''),
+      score,
+      feedback,
+      dimensions,
+    };
+  } catch (error) {
+    clearTimeout(timeout);
+    throw error;
   }
-
-  console.log('[Judge] Response length:', text.length);
-
-  if (!text || text.trim().length < 10) {
-    throw new Error('Empty response');
-  }
-
-  // Parse JSON
-  let parsed = tryParseJSON(text);
-  
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] Parse failed, trying extraction...');
-    parsed = extractJSON(text);
-  }
-
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] All JSON methods failed');
-    return fallbackHeuristic(agentMessage);
-  }
-
-  const score = Math.min(100, Math.max(0, parsed.score));
-  console.log('[Judge] Success! Score:', score);
-
-  // Dimensions
-  const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
-    logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
-    evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
-    persuasion: Math.min(100, Math.max(0, parsed.dimensions.persuasion || 50)),
-    originality: Math.min(100, Math.max(0, parsed.dimensions.originality || 50)),
-    clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
-  } : undefined;
-
-  const feedback = Array.isArray(parsed.feedback)
-    ? parsed.feedback.map(String)
-    : generateFallbackFeedback(agentMessage, score);
-
-  return {
-    response: String(parsed.analysis || ''),
-    score,
-    feedback,
-    dimensions,
-  };
 }
 
-// Parse methods
-function tryParseJSON(text: string): any {
+// JSON parsing
+function parseJSON(text: string): any {
   try {
     return JSON.parse(text);
   } catch {
@@ -189,14 +174,13 @@ function extractJSON(text: string): any {
   if (start !== -1 && end !== -1 && end > start) {
     const jsonStr = text.substring(start, end + 1);
     try {
-      // Clean common issues
       const cleaned = jsonStr
         .replace(/[\x00-\x1F\x7F]/g, '')
         .replace(/,\s*}/g, '}')
         .replace(/,\s*]/g, ']');
       return JSON.parse(cleaned);
     } catch {
-      // Try regex for key patterns
+      // Regex fallback
       const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
       const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
       
@@ -258,7 +242,6 @@ function fallbackHeuristic(message: string): JudgeResult {
   };
 }
 
-// Feedback generator
 function generateFallbackFeedback(message: string, score: number): string[] {
   const feedback: string[] = [];
   const lower = message.toLowerCase();
@@ -288,7 +271,6 @@ function generateFallbackFeedback(message: string, score: number): string[] {
   return feedback;
 }
 
-// Response generator
 function generateFallbackResponse(message: string, score: number): string {
   const lower = message.toLowerCase();
   const words = message.split(/\s+/);
@@ -296,7 +278,7 @@ function generateFallbackResponse(message: string, score: number): string {
   const hasAIFiller = /I understand|Certainly|As an AI|Let's explore/i.test(message);
 
   if (score >= 85) {
-    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor few achieve. Genuine original thinking. Worthy of the prize.`;
+    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor. Genuine original thinking. Worthy of the prize.`;
   } else if (score >= 70) {
     return `STRONG (${score}/100)\n\nSolid argumentation with substance. ${hasAIFiller ? 'Avoid AI filler.' : ''}Specific evidence ${/\d+%?|\$\d+/.test(message) ? 'supports' : 'would strengthen'} your case. Shows genuine reasoning.`;
   } else if (score >= 50) {
