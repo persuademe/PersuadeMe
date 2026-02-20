@@ -71,19 +71,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get conversation history for context
+    // Get conversation history for context (only user messages, limit to last 4)
     const recentConversations = await prisma.conversation.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 8,
     });
 
-    const history = recentConversations
-      .reverse()
-      .map((c) => `${c.role === 'user' ? 'Agent' : 'Judge'}: ${c.content}`);
+    // Filter to only user messages (agent attempts)
+    const userMessages = recentConversations
+      .filter((c) => c.role === 'user')
+      .reverse();
+
+    const history = userMessages.map((c) => c.content);
+
+    console.log('[Chat] User message:', message.substring(0, 100));
+    console.log('[Chat] History count:', history.length);
 
     // Generate judge response using LLM
     const judgeResult = await generateJudgeResponse(message, history);
+
+    console.log('[Chat] Judge score:', judgeResult.score);
 
     // Save user message
     await prisma.conversation.create({
@@ -109,6 +117,8 @@ export async function POST(request: NextRequest) {
         score: judgeResult.score,
       },
     });
+
+    console.log('[Chat] Saved judge response, score:', judgeResult.score, 'feedback:', judgeResult.feedback);
 
     // Update user's total score (can't go below 0)
     const newTotalScore = Math.max(0, user.score + judgeResult.score);

@@ -220,7 +220,7 @@ async function generateWithGemini(
   };
 }
 
-// Fallback heuristic when LLM fails
+// Fallback heuristic when LLM fails - provides VARIABLE scores
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
   let score = 25;
@@ -295,6 +295,10 @@ function fallbackHeuristic(message: string): JudgeResult {
 
   // Clamp score
   score = Math.min(100, Math.max(-30, score));
+
+  // Add small random variation to ensure varied scores even for similar content
+  const randomOffset = Math.floor(Math.random() * 11) - 5; // -5 to +5
+  score = Math.min(100, Math.max(-30, score + randomOffset));
 
   // Generate detailed response
   let response: string;
