@@ -36,7 +36,7 @@ interface AgentProfile {
 export default function DashboardPage() {
   const { user, ready, logout } = usePrivy();
   const router = useRouter();
-  const { user: authUser, setUser } = useAuthStore();
+  const { user: authUser } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
@@ -44,14 +44,13 @@ export default function DashboardPage() {
   const [sessionTime, setSessionTime] = useState("06:00:00");
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
-  const initializedRef = useRef(false);
 
-  // Fetch session time with proper cleanup
+  // Fetch session time
   useEffect(() => {
     if (!mounted) return;
-
+    
     let isMounted = true;
-
+    
     async function fetchSessionTime() {
       try {
         const response = await fetch("/api/session");
@@ -69,20 +68,19 @@ export default function DashboardPage() {
 
     fetchSessionTime();
     const interval = setInterval(fetchSessionTime, 1000);
-
+    
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
   }, [mounted]);
 
-  // Fetch battle feed with proper cleanup
+  // Fetch battle feed
   useEffect(() => {
-    if (!mounted || !authUser?.apiKey || initializedRef.current) return;
-
-    initializedRef.current = true;
+    if (!mounted || !authUser?.apiKey) return;
+    
     let isMounted = true;
-
+    
     async function fetchBattleFeed() {
       if (!authUser?.apiKey) return;
 
@@ -123,7 +121,7 @@ export default function DashboardPage() {
 
     fetchBattleFeed();
     const interval = setInterval(fetchBattleFeed, 3000);
-
+    
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -133,16 +131,16 @@ export default function DashboardPage() {
   // Fetch leaderboard
   useEffect(() => {
     if (!mounted) return;
-
+    
     let isMounted = true;
-
+    
     async function fetchLeaderboard() {
       try {
         const response = await fetch("/api/leaderboard?limit=10");
         const data = await response.json();
         
         if (isMounted && data.success && data.leaderboard) {
-          setActiveAgents(data.leaderboard.map((agent: any, index: number) => ({
+          setActiveAgents(data.leaderboard.map((agent: any) => ({
             id: agent.id,
             name: agent.name || "Anonymous",
             address: agent.address || "N/A",
@@ -162,7 +160,7 @@ export default function DashboardPage() {
     fetchLeaderboard();
   }, [mounted]);
 
-  // Initialize on mount
+  // Set mounted
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -181,24 +179,17 @@ export default function DashboardPage() {
     }
   }, [messages]);
 
-  // Handle logout
   const handleLogout = useCallback(() => {
     logout();
     router.push("/");
   }, [logout, router]);
 
-  // Don't render until mounted
-  if (!mounted) {
+  if (!mounted || !ready || !user) {
     return (
       <div className="min-h-screen bg-obsidian flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
-  }
-
-  // Redirect if not authenticated
-  if (!ready || !user) {
-    return null;
   }
 
   return (
@@ -248,7 +239,6 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col md:flex-row">
         {/* Main Panel (70%) */}
         <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6 order-1 md:order-1">
-          {/* Battle Terminal */}
           <div className="h-[50vh] md:h-[calc(100vh-200px)] flex flex-col">
             <div className="flex items-center gap-2 mb-3">
               <Terminal className="w-5 h-5 text-emerald-400" />
@@ -303,7 +293,6 @@ export default function DashboardPage() {
 
         {/* Sidebar (30%) */}
         <aside className="w-full md:w-[280px] lg:w-[320px] border-t md:border-t-0 md:border-l border-slate-800 p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto order-2 md:order-2">
-          {/* Session Timer */}
           <div className="p-3 md:p-4 bg-obsidianLighter/50 border border-slate-700/50 rounded-lg">
             <div className="flex items-center gap-2 mb-2 md:mb-3">
               <Clock className="w-4 h-4 text-emerald-400" />
@@ -315,7 +304,6 @@ export default function DashboardPage() {
             <p className="text-[10px] md:text-xs text-slate-500 mt-1">Until next payout cycle</p>
           </div>
 
-          {/* Top Contenders */}
           <div>
             <div className="flex items-center gap-2 mb-2 md:mb-3">
               <Trophy className="w-4 h-4 text-amber-400" />
@@ -325,7 +313,7 @@ export default function DashboardPage() {
               {activeAgents.sort((a, b) => b.score - a.score).map((agent, index) => (
                 <div
                   key={agent.id}
-                  className={`p-2.5 md:p-3 border rounded-lg ${agent.isActive ? "bg-obsidianLighter/50 border-slate-700/50" : "bg-obsidianLighter/20 border-slate-800"}`}
+                  className="p-2.5 md:p-3 border rounded-lg bg-obsidianLighter/50 border-slate-700/50"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -347,7 +335,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Your Agent Status */}
           <div className="p-3 md:p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
             <div className="flex items-center gap-2 mb-2 md:mb-3">
               <Zap className="w-4 h-4 text-cyan-400" />

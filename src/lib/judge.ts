@@ -195,9 +195,9 @@ async function generateWithGemini(
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
   const apiKey = process.env.GEMINI_API_KEY;
-  const model = 'gemini-1.5-pro';
+  const model = 'gemini-2.5-flash';
   
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
   
   const historyText = conversationHistory 
     ? `\n\nConversation history:\n${conversationHistory.join('\n')}` 
@@ -221,6 +221,8 @@ async function generateWithGemini(
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Judge] Gemini API error:', response.status, errorText);
     throw new Error(`Gemini API error: ${response.status}`);
   }
 
