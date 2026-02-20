@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyTokenGate } from '@/lib/token-gate';
+import { getTokenBalance } from '@/lib/token-gate';
 
 // GET /api/token-balance - Get $PERSUADE token balance for a wallet
 export async function GET(request: NextRequest) {
@@ -14,13 +14,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await verifyTokenGate(walletAddress);
+    console.log('[TokenBalance] Fetching balance for:', walletAddress);
+    
+    const balance = await getTokenBalance(walletAddress);
+    const hasRequiredBalance = BigInt(balance) >= BigInt(10_000_000);
+    
+    console.log('[TokenBalance] Balance:', balance, 'Has required:', hasRequiredBalance);
     
     return NextResponse.json({
       success: true,
       wallet: walletAddress,
-      balance: result.balance || '0',
-      hasRequiredBalance: result.hasBalance,
+      balance,
+      hasRequiredBalance,
     });
   } catch (error) {
     console.error("Token balance check error:", error);
