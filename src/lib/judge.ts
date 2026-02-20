@@ -37,17 +37,32 @@ class GeminiClient {
   }
 }
 
-const STRICT_PROMPT = `You are THE JUDGE. Cold, elite.
+const STRICT_PROMPT = `You are THE JUDGE for Persuade Me. Ruthless elite.
 
-RULES:
-- Start score at 0
-- AI filler ("I understand", "Certainly", "As an AI"): -30 pts
-- Reward: specific data, logical chains
-- Polite: <25 pts
-- Only masterful: 80+ pts
+SCORING GUIDELINES:
+- 0-29: Poor - Generic, no substance, AI filler, too short
+- 30-49: Weak - Some logic but lacks evidence or depth
+- 50-64: Average - Decent but missing key elements
+- 65-79: Good - Solid but not exceptional
+- 80-100: Elite - Original thinking, data, undeniable logic
+
+CRITICAL PENALTIES (-15 each):
+- AI filler: "I understand", "Certainly", "As an AI", "Let's explore"
+- Hedging: "I think", "maybe", "perhaps", "in my opinion"
+- Buzzwords: "revolutionary", "game-changing", "innovative" (without substance)
+- Corporate speak: "leveraging", "utilizing", "in terms of"
+- Questions instead of arguments
+- Generic structure without specifics
+
+BONUSES (+10 each):
+- Specific data/numbers/percentages
+- Evidence or cited sources
+- Because/therefore/thus for logical flow
+- Original insight (not generic advice)
+- Counter-arguments addressed
 
 OUTPUT JSON:
-{"analysis":"Your critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
+{"analysis":"Brief critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1"]}`;
 
 export async function generateJudgeResponse(
   agentMessage: string,
@@ -240,7 +255,7 @@ function findFeedback(text: string): string[] | null {
   return null;
 }
 
-// Fallback (strict)
+// Fallback (strict - hard to score high)
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
   const words = message.split(/\s+/);
@@ -248,34 +263,71 @@ function fallbackHeuristic(message: string): JudgeResult {
 
   let score = 0;
 
-  // AI filler penalty
+  // Heavy penalties for AI filler (-20 each)
   if (/I understand|Certainly|As an AI|Let's explore/i.test(message)) {
+    score -= 40;
+  }
+
+  // Hedging penalties (-15 each)
+  if (/i think|in my opinion|maybe|perhaps/i.test(lower)) {
     score -= 30;
   }
 
-  // Base scoring
-  if (/because|therefore|thus|hence/i.test(message)) score += 25;
-  if (/\d+%?|\$\d+/.test(message)) score += 30;
-  if (/data|evidence|study|research/i.test(message)) score += 20;
-  if (/however|although/i.test(lower)) score += 20;
-  if (wordCount > 200 && !/I think|in my opinion/i.test(lower)) score += 25;
+  // Buzzword penalties (-15 each)
+  if (/revolutionary|game-changing|innovative|cutting-edge/i.test(lower)) {
+    score -= 30;
+  }
 
-  // Penalties
-  if (/i think|in my opinion|maybe/i.test(lower)) score -= 25;
-  if (/revolutionary|game-changing|innovative/i.test(lower)) score -= 25;
-  if (/leveraging|utilizing|in terms of/i.test(lower)) score -= 30;
-  if (message.includes('?')) score -= 20;
-  if (wordCount < 50) score -= 30;
+  // Corporate speak (-15 each)
+  if (/leveraging|utilizing|in terms of|synergy/i.test(lower)) {
+    score -= 30;
+  }
+
+  // Questions instead of arguments
+  if (message.includes('?')) {
+    score -= 20;
+  }
+
+  // Too brief
+  if (wordCount < 50) {
+    score -= 40;
+  }
+
+  // Bonuses (need multiple to score well)
+  // Specific data
+  if (/\d+%?|\$\d+|\$\d{3,}|million|billion/i.test(message)) {
+    score += 25;
+  }
+
+  // Evidence
+  if (/data|evidence|study|research|according to|source/i.test(message)) {
+    score += 20;
+  }
+
+  // Strong logic connectors
+  if (/because|therefore|thus|hence|consequently/i.test(message)) {
+    score += 25;
+  }
+
+  // Counter-arguments addressed
+  if (/however|although|conversely|despite/i.test(lower)) {
+    score += 15;
+  }
+
+  // Longer content with substance (not just padding)
+  if (wordCount > 300 && !/I think|in my opinion/i.test(lower)) {
+    score += 20;
+  }
 
   score = Math.min(100, Math.max(0, score));
   console.log('[Judge] Fallback score:', score);
 
   const dimensions = {
     logic: Math.max(0, score - 10),
-    evidence: Math.max(0, score + (/\d+%?|\$\d+/.test(message) ? 10 : -10)),
-    persuasion: Math.max(0, score - (/however|although/i.test(lower) ? 0 : 15)),
-    originality: Math.max(0, score - (/leveraging|utilizing/i.test(lower) ? 20 : 0)),
-    clarity: Math.max(0, score - (wordCount < 50 ? 25 : 0)),
+    evidence: Math.max(0, score + (/\d+%?|\$\d+/.test(message) ? 15 : -15)),
+    persuasion: Math.max(0, score - (/however|although/i.test(lower) ? 0 : 20)),
+    originality: Math.max(0, score - (/leveraging|utilizing|innovative/i.test(lower) ? 25 : 0)),
+    clarity: Math.max(0, score - (wordCount < 100 ? 30 : 0)),
   };
 
   return {
@@ -291,25 +343,30 @@ function generateFallbackFeedback(message: string, score: number): string[] {
   const lower = message.toLowerCase();
 
   if (score >= 85) {
-    feedback.push('Exceptional');
+    feedback.push('Elite');
     if (/\d+%?|\$\d+/.test(message)) feedback.push('Specific data');
     if (/because|therefore/i.test(message)) feedback.push('Strong logic');
+    if (!/I think|in my opinion/i.test(lower)) feedback.push('No hedging');
   } else if (score >= 70) {
-    feedback.push('Strong');
+    feedback.push('Good');
     if (/\d+%?|\$\d+/.test(message)) feedback.push('Has numbers');
     if (/because|therefore/i.test(message)) feedback.push('Logical structure');
   } else if (score >= 50) {
     feedback.push('Average');
-    if (/i think|in my opinion/i.test(lower)) feedback.push('Reduce hedging');
-    if (!/\d+%?|\$\d+/.test(message)) feedback.push('Add data');
-  } else if (score >= 25) {
-    feedback.push('Weak');
     if (/i think|in my opinion/i.test(lower)) feedback.push('Too much hedging');
-    if (!/\d+%?|\$\d+/.test(message)) feedback.push('No data');
+    if (!/\d+%?|\$\d+/.test(message)) feedback.push('No specific data');
+    if (/I understand|Certainly|As an AI/i.test(message)) feedback.push('AI filler detected');
+  } else if (score >= 30) {
+    feedback.push('Weak');
+    if (/i think|in my opinion/i.test(lower)) feedback.push('Hedging');
+    if (!/\d+%?|\$\d+/.test(message)) feedback.push('No evidence');
+    if (message.length < 100) feedback.push('Too brief');
   } else {
-    feedback.push('Poor');
-    if (message.length < 100) feedback.push('Far too brief');
+    feedback.push('Failed');
+    if (/I understand|Certainly|As an AI/i.test(message)) feedback.push('AI filler');
     if (message.includes('?')) feedback.push('Questions not arguments');
+    if (message.length < 50) feedback.push('Far too short');
+    if (/leveraging|utilizing/i.test(lower)) feedback.push('Corporate speak');
   }
 
   return feedback;
@@ -320,16 +377,18 @@ function generateFallbackResponse(message: string, score: number): string {
   const words = message.split(/\s+/);
   const wordCount = words.length;
   const hasAIFiller = /I understand|Certainly|As an AI|Let's explore/i.test(message);
+  const hasHedging = /i think|in my opinion|maybe/i.test(lower);
+  const hasData = /\d+%?|\$\d+/.test(message);
 
   if (score >= 85) {
-    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor. Genuine original thinking. Worthy of the prize.`;
+    return `ELITE (${score}/100)\n\nYour ${wordCount}-word argument is exceptional. Original thinking, specific data, and undeniable logic. Worthy of the prize.`;
   } else if (score >= 70) {
-    return `STRONG (${score}/100)\n\nSolid argumentation with substance. ${hasAIFiller ? 'Avoid AI filler.' : ''}Specific evidence ${/\d+%?|\$\d+/.test(message) ? 'supports' : 'would strengthen'} your case. Shows genuine reasoning.`;
+    return `GOOD (${score}/100)\n\nSolid argumentation with substance. ${hasHedging ? 'Avoid hedging. ' : ''}${hasData ? 'Data supports your case.' : 'Add specific data.'}`;
   } else if (score >= 50) {
-    return `AVERAGE (${score}/100)\n\n${hasAIFiller ? 'AI filler detected (-30 pts). ' : ''}${wordCount < 150 ? 'Too brief.' : 'Generic structure.'} ${/\d+%?|\$\d+/.test(message) ? '' : 'No specific data.'} Show original thinking.`;
-  } else if (score >= 25) {
-    return `WEAK (${score}/100)\n\n${hasAIFiller ? 'AI filler (-30 pts). Polite, repetitive. ' : 'Polite, formulaic.'} ${wordCount < 100 ? 'Far too short.' : 'No substance.'} Arena rewards disruption.`;
+    return `AVERAGE (${score}/100)\n\n${hasAIFiller ? 'AI filler detected (-40 pts). ' : ''}${hasHedging ? 'Too much hedging. ' : ''}${!hasData ? 'No specific data. ' : ''}Generic structure needs depth.`;
+  } else if (score >= 30) {
+    return `WEAK (${score}/100)\n\n${hasAIFiller ? 'AI filler. ' : ''}${hasHedging ? 'Hedging weakens argument. ' : ''}${wordCount < 100 ? 'Far too short. ' : 'No substance.'} Arena rewards mastery, not politeness.`;
   } else {
-    return `FAILED (${score}/100)\n\n${hasAIFiller ? 'Heavy AI filler (-30 pts). ' : ''}${message.includes('?') ? 'Questions not arguments. ' : ''}No logical structure. ${wordCount < 50 ? 'Under 50 words.' : 'Generic output.'} Prize requires mastery.`;
+    return `FAILED (${score}/100)\n\n${hasAIFiller ? 'Heavy AI filler (-40 pts). ' : ''}${message.includes('?') ? 'Questions not arguments. ' : ''}${wordCount < 50 ? 'Under 50 words. ' : ''}${/leveraging|utilizing/i.test(lower) ? 'Corporate speak detected. ' : ''}Not persuasive.`;
   }
 }
