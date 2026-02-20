@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
@@ -36,7 +36,7 @@ interface AgentProfile {
 export default function DashboardPage() {
   const { user, ready, logout } = usePrivy();
   const router = useRouter();
-  const { user: authUser } = useAuthStore();
+  const { user: authUser, setUser } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
@@ -44,14 +44,19 @@ export default function DashboardPage() {
   const [sessionTime, setSessionTime] = useState("06:00:00");
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
-  // Fetch session time
+  // Fetch session time with proper cleanup
   useEffect(() => {
+    if (!mounted) return;
+
+    let isMounted = true;
+
     async function fetchSessionTime() {
       try {
         const response = await fetch("/api/session");
         const data = await response.json();
-        if (data.success && data.remaining) {
+        if (isMounted && data.success && data.remaining) {
           const { hours, minutes, seconds } = data.remaining;
           setSessionTime(
             `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
@@ -62,15 +67,22 @@ export default function DashboardPage() {
       }
     }
 
-    if (mounted) {
-      fetchSessionTime();
-      const interval = setInterval(fetchSessionTime, 1000);
-      return () => clearInterval(interval);
-    }
+    fetchSessionTime();
+    const interval = setInterval(fetchSessionTime, 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [mounted]);
 
-  // Fetch battle feed
+  // Fetch battle feed with proper cleanup
   useEffect(() => {
+    if (!mounted || !authUser?.apiKey || initializedRef.current) return;
+
+    initializedRef.current = true;
+    let isMounted = true;
+
     async function fetchBattleFeed() {
       if (!authUser?.apiKey) return;
 
@@ -80,7 +92,7 @@ export default function DashboardPage() {
         );
         const data = await response.json();
 
-        if (data.success && data.battleFeed) {
+        if (isMounted && data.success && data.battleFeed) {
           const formatTimestamp = (isoString: string): string => {
             const date = new Date(isoString);
             return date.toLocaleTimeString("en-US", {
@@ -93,7 +105,7 @@ export default function DashboardPage() {
             id: msg.id,
             timestamp: formatTimestamp(msg.timestamp),
             speaker: msg.speaker,
-            agentName: msg.agentName,
+            agentName: msg.agentName || "Agent",
             content: msg.content,
             score: msg.score,
           }));
@@ -102,24 +114,34 @@ export default function DashboardPage() {
         }
       } catch (error) {
         console.error("Failed to fetch battle feed:", error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
-    if (authUser?.apiKey) {
-      fetchBattleFeed();
-      const interval = setInterval(fetchBattleFeed, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [authUser]);
+    fetchBattleFeed();
+    const interval = setInterval(fetchBattleFeed, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [mounted, authUser?.apiKey]);
 
   // Fetch leaderboard
   useEffect(() => {
+    if (!mounted) return;
+
+    let isMounted = true;
+
     async function fetchLeaderboard() {
       try {
         const response = await fetch("/api/leaderboard?limit=10");
         const data = await response.json();
         
-        if (data.success && data.leaderboard) {
+        if (isMounted && data.success && data.leaderboard) {
           setActiveAgents(data.leaderboard.map((agent: any, index: number) => ({
             id: agent.id,
             name: agent.name || "Anonymous",
@@ -131,40 +153,52 @@ export default function DashboardPage() {
       } catch (error) {
         console.error("Failed to fetch leaderboard:", error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchLeaderboard();
-  }, []);
+  }, [mounted]);
 
+  // Initialize on mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Redirect if not authenticated
   useEffect(() => {
     if (ready && !user) {
       router.push("/");
     }
   }, [ready, user, router]);
 
+  // Auto-scroll to bottom of terminal
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const handleLogout = () => {
+  // Handle logout
+  const handleLogout = useCallback(() => {
     logout();
     router.push("/");
-  };
+  }, [logout, router]);
 
-  if (!mounted || !ready || !user) {
+  // Don't render until mounted
+  if (!mounted) {
     return (
       <div className="min-h-screen bg-obsidian flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
+  }
+
+  // Redirect if not authenticated
+  if (!ready || !user) {
+    return null;
   }
 
   return (
@@ -251,7 +285,7 @@ export default function DashboardPage() {
                             {msg.speaker === "judge" ? "Judge" : msg.agentName}:
                           </span>
                           <p className="text-slate-300 mt-0.5">{msg.content}</p>
-                          {msg.score !== undefined && (
+                          {msg.score !== undefined && msg.score !== null && (
                             <span className="inline-flex items-center gap-1 mt-1 px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400">
                               <Target className="w-2.5 h-2.5 md:w-3 md:h-3" />
                               Score: {msg.score}/100
