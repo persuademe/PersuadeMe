@@ -21,7 +21,7 @@ class GeminiClient {
 
   static getModel() {
     if (!this.model) {
-      if (!GEMINI_API_KEY) throw new Error('API Key missing');
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is missing. AI scoring cannot proceed.');
       
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       this.model = this.genAI.getGenerativeModel({
@@ -29,7 +29,7 @@ class GeminiClient {
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.1,
-          maxOutputTokens: 1200, // Ditambah sedikit untuk menampung 500 karakter + struktur JSON
+          maxOutputTokens: 1500, // Ditingkatkan agar analisis panjang tidak terpotong
         },
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -37,13 +37,13 @@ class GeminiClient {
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ],
-        systemInstruction: `You are the OBSIDIAN JUDGE. Cold, elite, and ruthless.
+        systemInstruction: `You are the OBSIDIAN JUDGE. You evaluate arguments with extreme elitism and cold logic.
         
-        STRICT RULES:
-        1. DUPLICATION: Compare the new argument with all previous messages in HISTORY. If the argument is a paraphrase, repeat, or lacks new substantive points, score MUST be < 10.
-        2. AI FILLER: -50 pts for any polite AI-speak ("Certainly", "I understand", "As an AI"). 
-        3. RESPONSE LENGTH: Your "analysis" field must be detailed but strictly NO MORE THAN 500 characters.
-        4. JSON ONLY: Output a single valid JSON object. No markdown.`,
+        CRITICAL MANDATES:
+        1. DUPLICATION: Compare the new argument with ALL messages in HISTORY. If it's a repeat, paraphrase, or lacks new ideas, score MUST be < 10.
+        2. AI FILLER: -50 pts for any AI-style fluff (e.g., "Certainly", "I understand", "As an AI").
+        3. NO PROSE: Output ONLY valid JSON.
+        4. ANALYSIS: Provide a deep, ruthless critique. stay professional and biting.`,
       });
     }
     return this.model;
@@ -54,51 +54,75 @@ export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory: string[] = []
 ): Promise<JudgeResult> {
+  if (!GEMINI_API_KEY) {
+    throw new Error("JUDGE_ERROR: API Key not configured.");
+  }
+
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const model = GeminiClient.getModel();
       
-      const prompt = `HISTORY:
+      const prompt = `HISTORY OF CONVERSATION:
       ${conversationHistory.join('\n---\n')}
       
-      AGENT ARGUMENT:
+      AGENT'S NEW ARGUMENT:
       "${agentMessage}"
       
-      TASK: Evaluate strictly. If repetitive or duplicate, score < 10. Max analysis: 500 chars.`;
+      EVALUATE AND RETURN JSON. If the argument is repetitive/duplicate compared to history, score is < 10.`;
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       let text = response.text().trim();
 
+      // Sanitasi Markdown
       text = text.replace(/```json|```/g, '').trim();
 
-      // Fix if JSON is slightly truncated
+      // Validasi JSON Integrity
       if (!text.endsWith('}')) {
         const lastBrace = text.lastIndexOf('}');
-        if (lastBrace !== -1) {
-          text = text.substring(0, lastBrace + 1);
-        } else {
-          throw new Error("Invalid JSON structure");
-        }
+        if (lastBrace !== -1) text = text.substring(0, lastBrace + 1);
+        else throw new Error("Incomplete JSON response.");
       }
 
       const parsed = JSON.parse(text);
 
-      // Pastikan response tidak melebihi 500 karakter secara manual (keamanan tambahan)
-      const finalAnalysis = parsed.analysis || "Inadequate argument.";
-      
+      if (typeof parsed.score !== 'number' || !parsed.analysis) {
+        throw new Error("Invalid JSON structure from AI.");
+      }
+
+      // --- 70% SCORE NERF LOGIC ---
+      const rawScore = parsed.score;
+      const nerfedScore = Math.floor(rawScore * 0.7);
+
+      // Sinkronisasi Dimensi (juga dipotong 30%)
+      const dims = parsed.dimensions || { logic: 0, evidence: 0, persuasion: 0, originality: 0, clarity: 0 };
+      const nerfedDimensions = {
+        logic: Math.floor((dims.logic || 0) * 0.7),
+        evidence: Math.floor((dims.evidence || 0) * 0.7),
+        persuasion: Math.floor((dims.persuasion || 0) * 0.7),
+        originality: Math.floor((dims.originality || 0) * 0.7),
+        clarity: Math.floor((dims.clarity || 0) * 0.7),
+      };
+
+      console.log(`[Judge] AI Raw Score: ${rawScore} -> Final Nerfed Score: ${nerfedScore}`);
+
       return {
-        response: finalAnalysis.length > 505 ? finalAnalysis.substring(0, 500) + "..." : finalAnalysis,
-        score: Math.min(100, Math.max(0, parsed.score)),
+        response: parsed.analysis,
+        score: Math.min(100, Math.max(0, nerfedScore)),
         feedback: Array.isArray(parsed.feedback) ? parsed.feedback : [],
-        dimensions: parsed.dimensions || { logic: 0, evidence: 0, persuasion: 0, originality: 0, clarity: 0 }
+        dimensions: nerfedDimensions
       };
 
     } catch (error) {
-      console.error(`[Judge] Attempt ${attempt} failed:`, error);
-      if (attempt === 3) throw error;
-      await new Promise(r => setTimeout(r, 1000 * attempt));
+      console.error(`[Judge] Attempt ${attempt} failed:`, error instanceof Error ? error.message : error);
+      
+      if (attempt === 3) {
+        throw new Error(`AI_JUDGE_FAILURE: Final attempt failed.`);
+      }
+      
+      await new Promise(r => setTimeout(r, 1500 * attempt));
     }
   }
+
   throw new Error("AI_JUDGE_UNAVAILABLE");
 }
