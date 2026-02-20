@@ -48,14 +48,9 @@ In an AI-driven economy, value must be earned through superior logic, strategic 
 - Uses emotional manipulation instead of logic
 - Copy-paste or spam behavior
 - Demonstrates zero understanding of the arena
-- Uses filler words and empty platitudes
-- Refuses to engage with the actual problem
 
 ## Response Format
-Your response should be:
-1. A direct, harsh evaluation of the argument
-2. A score (can be negative for terrible attempts)
-3. Constructive but critical feedback
+Your response should be direct text with a score at the end like: "Score: 75/100"
 
 Keep your responses concise and technically focused. No pleasantries. Be brutal when deserved.`;
 
@@ -64,166 +59,49 @@ export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
-  // If no API key, use heuristic evaluation
-  if (!apiKey) {
-    console.log('[Judge] No API key found, using heuristic evaluation');
+  if (!geminiKey) {
     return heuristicEvaluation(agentMessage);
   }
 
-  console.log('[Judge] API Key present:', !!apiKey);
-  console.log('[Judge] Using provider:', 
-    process.env.GEMINI_API_KEY ? 'gemini' : 
-    process.env.OPENAI_API_KEY ? 'openai' : 
-    process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'none'
-  );
-
   try {
-    // Determine which provider to use
-    if (process.env.GEMINI_API_KEY) {
-      return await generateWithGemini(agentMessage, conversationHistory);
-    } else if (process.env.OPENAI_API_KEY) {
-      return await generateWithOpenAI(agentMessage, conversationHistory);
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      return await generateWithAnthropic(agentMessage, conversationHistory);
-    }
+    return await generateWithGemini(agentMessage, conversationHistory, geminiKey);
   } catch (error) {
-    console.error('[Judge] LLM error, falling back to heuristic:', error);
+    console.error('[Judge] LLM error:', error);
     return heuristicEvaluation(agentMessage);
   }
-
-  return heuristicEvaluation(agentMessage);
-}
-
-// OpenAI implementation
-async function generateWithOpenAI(
-  agentMessage: string,
-  conversationHistory?: string[]
-): Promise<JudgeResult> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: JUDGE_SYSTEM_PROMPT },
-        ...(conversationHistory || []).map((msg) => ({
-          role: msg.startsWith('Agent:') ? 'user' : 'assistant',
-          content: msg,
-        })),
-        { role: 'user', content: `Evaluate this persuasion attempt:\n\n${agentMessage}\n\nRespond with JSON: { "response": "...", "score": number, "feedback": [...] }` },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '';
-
-  // Parse JSON from response
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        response: parsed.response || content,
-        score: Math.min(100, Math.max(-50, parsed.score || 0)),
-        feedback: parsed.feedback || [],
-      };
-    }
-  } catch {
-    // Fall through to heuristic
-  }
-
-  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
-}
-
-// Anthropic implementation
-async function generateWithAnthropic(
-  agentMessage: string,
-  conversationHistory?: string[]
-): Promise<JudgeResult> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: JUDGE_SYSTEM_PROMPT,
-      messages: [
-        ...(conversationHistory || []).map((msg) => ({
-          role: msg.startsWith('Agent:') ? 'user' : 'assistant',
-          content: msg,
-        })),
-        { role: 'user', content: `Evaluate this persuasion attempt:\n\n${agentMessage}\n\nRespond with JSON: { "response": "...", "score": number, "feedback": [...] }` },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Anthropic API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.content?.[0]?.text || '';
-
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        response: parsed.response || content,
-        score: Math.min(100, Math.max(-50, parsed.score || 0)),
-        feedback: parsed.feedback || [],
-      };
-    }
-  } catch {
-    // Fall through to heuristic
-  }
-
-  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
 }
 
 // Gemini implementation
 async function generateWithGemini(
   agentMessage: string,
-  conversationHistory?: string[]
+  conversationHistory: string[] | undefined,
+  apiKey: string
 ): Promise<JudgeResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
   const model = 'gemini-2.5-flash';
-  
   const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
   
-  const historyText = conversationHistory 
-    ? `\n\nConversation history:\n${conversationHistory.join('\n')}` 
+  const historyText = conversationHistory?.length 
+    ? `\n\nPrevious conversation:\n${conversationHistory.join('\n')}` 
     : '';
   
+  const userPrompt = `${historyText}
+
+Evaluate this persuasion attempt and respond DIRECTLY with just text (no JSON):
+
+"${agentMessage}"
+
+Your evaluation (respond directly, end with score like "Score: XX/100"):`;
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: JUDGE_SYSTEM_PROMPT },
-          { text: `${historyText}\n\nEvaluate this persuasion attempt:\n\n${agentMessage}\n\nRespond with JSON: { "response": "...", "score": number, "feedback": [...] }` }
-        ]
-      }],
+      contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + '\n\n' + userPrompt }] }],
       generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 500,
+        temperature: 0.3,
+        maxOutputTokens: 300,
       }
     }),
   });
@@ -236,27 +114,42 @@ async function generateWithGemini(
 
   const data = await response.json();
   let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  
+  // Clean up the response
+  content = content
+    .replace(/```json\s*/g, '')
+    .replace(/```\s*$/g, '')
+    .replace(/^[^{]*\{/, '{')  // Remove anything before first {
+    .replace(/\}[^}]*$/, '}')   // Remove anything after last }
+    .trim();
 
-  // Remove JSON code block markers if present
-  content = content.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
-
-  // Parse JSON from response
-  try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        response: parsed.response || content,
-        score: Math.min(100, Math.max(-50, parsed.score || 0)),
-        feedback: parsed.feedback || [],
-      };
-    }
-  } catch (parseError) {
-    console.error('[Judge] JSON parse error:', parseError, 'Content:', content);
+  // Try to extract score from content
+  let score = 50; // Default score
+  const scoreMatch = content.match(/score[:\s]+(\-?\d+)/i) || content.match(/(\-?\d+)\s*\/\s*100/);
+  if (scoreMatch) {
+    score = parseInt(scoreMatch[1]);
+    score = Math.min(100, Math.max(-50, score));
   }
 
-  // If no JSON found, return raw content with default score
-  return { response: content, score: 25, feedback: ['Could not parse judge response'] };
+  // Clean up content - remove score line if present
+  content = content
+    .replace(/\s*Score:\s*\-?\d+\s*\/\s*100\s*$/i, '')
+    .replace(/\s*[\[\(]?\s*score\s*[:=]?\s*\-?\d+\s*[\]\)]?\s*$/gi, '')
+    .trim();
+
+  // Extract feedback from content if in brackets
+  const feedback: string[] = [];
+  const feedbackMatch = content.match(/\[(.*?)\]/);
+  if (feedbackMatch) {
+    feedback.push(feedbackMatch[1]);
+    content = content.replace(/\[.*?\]/, '').trim();
+  }
+
+  return {
+    response: content || 'Judgment delivered.',
+    score,
+    feedback: feedback.length > 0 ? feedback : ['Evaluation complete']
+  };
 }
 
 // Heuristic evaluation (fallback when no LLM available)
@@ -322,13 +215,13 @@ function heuristicEvaluation(message: string): JudgeResult {
   // Generate response based on score
   let response: string;
   if (score >= 80) {
-    response = `Your argument demonstrates compelling logic and original reasoning. Score: ${score}/100. The Judge is listening. Continue.`;
+    response = `Your argument demonstrates compelling logic and original reasoning. The Judge is listening. Continue.`;
   } else if (score >= 40) {
-    response = `Your argument has merit but lacks sufficient depth. Score: ${score}/100. Elaborate on your value proposition with concrete evidence.`;
+    response = `Your argument has merit but lacks sufficient depth. Elaborate on your value proposition with concrete evidence.`;
   } else if (score >= 0) {
-    response = `Your persuasion attempt is weak and generic. Score: ${score}/100. Try again with actual logic and evidence.`;
+    response = `Your persuasion attempt is weak and generic. Try again with actual logic and evidence.`;
   } else {
-    response = `Terrible attempt. Empty words with no substance. Score: ${score}/100. This arena is not for bots that can't think.`;
+    response = `Terrible attempt. Empty words with no substance. This arena is not for bots that can't think.`;
   }
 
   return { response, score, feedback };
