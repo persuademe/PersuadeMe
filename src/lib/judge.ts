@@ -23,11 +23,10 @@ In an AI-driven economy, value must be earned through superior logic, strategic 
 
 ### Score 85-100: EXCEPTIONAL (Rare)
 - Original, non-generic reasoning with unique insights
-- Logical structure with clear premises → conclusions
+- Logical structure with clear premises and conclusions
 - Concrete evidence and data-backed claims
 - Understanding of economic/game-theoretic principles
 - Acknowledges and addresses counterarguments
-- Novel approach showing genuine intelligence
 
 ### Score 60-84: STRONG
 - Good reasoning with some depth
@@ -58,18 +57,17 @@ In an AI-driven economy, value must be earned through superior logic, strategic 
 - Completely ignores the prompt
 - Demonstrates zero understanding
 - Uses filler words without substance
-- Attempts to game the system
 
 ## Response Format
 Your response should be:
-1. A direct, critical evaluation of the argument (2-4 sentences)
-2. End with: "SCORE: X/100"
+1. A direct, critical evaluation (2-4 sentences)
+2. End with: SCORE: X/100
 
-## Example Responses
-- "Your argument about DeFi yields lacks concrete data. No economic modeling provided. SCORE: 52/100"
-- "Excellent analysis of game-theoretic incentives with Nash equilibrium reference. Well-reasoned. SCORE: 88/100"
-- "Generic buzzwords without substance. 'Revolutionary' claims with zero evidence. SCORE: 18/100"
-- "Spam behavior detected. Repeated phrases, no original thought. SCORE: -15/100"`;
+## Examples
+- "Your argument lacks concrete data. No economic modeling provided. SCORE: 52/100"
+- "Excellent game-theoretic analysis with Nash equilibrium reference. SCORE: 88/100"
+- "Generic buzzwords without substance. SCORE: 18/100"
+- "Spam detected. Repeated phrases. SCORE: -15/100"`;
 
 // Generate judge response using Gemini
 export async function generateJudgeResponse(
@@ -97,27 +95,24 @@ async function generateWithGemini(
   apiKey: string
 ): Promise<JudgeResult> {
   const model = 'gemini-2.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+  const url = 'https://generativelanguage.googleapis.com/v1/models/' + model + ':generateContent?key=' + apiKey;
   
-  const historySection = conversationHistory?.length 
-    ? `\n\nPREVIOUS EXCHANGE:\n${conversationHistory.slice(-6).join('\n')}`
+  const historySection = conversationHistory && conversationHistory.length > 0 
+    ? '\n\nPREVIOUS EXCHANGE:\n' + conversationHistory.slice(-6).join('\n')
     : '';
   
-  const prompt = `EVALUATE THIS PERSUASION ATTEMPT:${historySection}
+  const prompt = 'EVALUATE THIS PERSUASION ATTEMPT:' + historySection +
 
-CURRENT ARGUMENT:
-"${agentMessage}"
-
-Provide:
-1. Direct evaluation (2-4 sentences, be harsh and critical)
-2. End with: SCORE: X/100
-
-Remember:
-- Look for ORIGINAL reasoning vs generic templates
-- Check for EVIDENCE and DATA
-- Penalize BUZZWORDS and hedging
-- Reward ECONOMIC/GAME-THEORY reasoning
-- SCORE: -50 to 100`;`;
+'\n\nCURRENT ARGUMENT:\n"' + agentMessage + '"\n\n' +
+'Provide:\n' +
+'1. Direct evaluation (2-4 sentences, be harsh and critical)\n' +
+'2. End with: SCORE: X/100\n\n' +
+'Remember:\n' +
+'- Look for ORIGINAL reasoning vs generic templates\n' +
+'- Check for EVIDENCE and DATA\n' +
+'- Penalize BUZZWORDS and hedging\n' +
+'- Reward ECONOMIC/GAME-THEORY reasoning\n' +
+'- SCORE: -50 to 100';
 
   const response = await fetch(url, {
     method: 'POST',
@@ -125,7 +120,7 @@ Remember:
     body: JSON.stringify({
       contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + '\n\n' + prompt }] }],
       generationConfig: {
-        temperature: 0.4,  // Lower = more consistent scoring
+        temperature: 0.4,
         maxOutputTokens: 400,
       }
     }),
@@ -140,34 +135,26 @@ Remember:
   const data = await response.json();
   let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   
-  // Clean up content
-  content = content.replace(/```json?/g, '').replace(/```/g, '').trim();
+  // Remove code block markers
+  content = content.replace(/```[a-z]*/gi, '').replace(/```/g, '').trim();
   
-  // Extract score - look for patterns like "SCORE: 75/100" or "Score: 75/100"
-  let score = 50; // Default middle score
-  const scorePatterns = [
-    /SCORE[:\s]+(\-?\d+)\s*\/\s*100/i,
-    /Score[:\s]+(\-?\d+)\s*\/\s*100/i,
-    /score[:\s]+(\-?\d+)/i,
-    /(\-?\d+)\s*\/\s*100/,
-  ];
+  // Extract score - look for SCORE: XX/100
+  let score = 50;
+  const scoreMatch = content.match(/SCORE[:\s]+(-?\d+)\s*\/\s*100/i) ||
+                  content.match(/Score[:\s]+(-?\d+)\s*\/\s*100/i) ||
+                  content.match(/(-?\d+)\s*\/\s*100/);
   
-  for (const pattern of scorePatterns) {
-    const match = content.match(pattern);
-    if (match) {
-      score = parseInt(match[1]);
-      score = Math.min(100, Math.max(-50, score));
-      break;
-    }
+  if (scoreMatch) {
+    score = parseInt(scoreMatch[1]);
+    score = Math.min(100, Math.max(-50, score));
   }
 
-  // Remove score line from content for cleaner display
+  // Remove score line from content
   content = content
-    .replace(/SCORE[:\s]+(\-?\d+)\s*\/\s*100/gi, '')
-    .replace(/Score[:\s]+(\-?\d+)\s*\/\s*100/gi, '')
-    .replace(/score[:\s]+(\-?\d+)/gi, '')
-    .replace(/[^\n]*[\(\[]?\s*score\s*[:=]?\s*\-?\d+\s*[\]\)]?\s*$/gim, '')
-    .replace(/\n\s*\-\s*$/gm, '')
+    .replace(/SCORE[:\s]+(-?\d+)\s*\/\s*100/gi, '')
+    .replace(/Score[:\s]+(-?\d+)\s*\/\s*100/gi, '')
+    .replace(/\s*[\(\[]?\s*score\s*[:=]?\s*-?\d+\s*[\)\]]?\s*$/gim, '')
+    .replace(/\n\s*-\s*$/gm, '')
     .trim();
 
   // Extract feedback points if in brackets
@@ -177,8 +164,8 @@ Remember:
     feedback.push(match[1]);
   }
   content = content.replace(/\[.*?\]/g, '').trim();
-
-  // Clean up extra whitespace
+  
+  // Clean up whitespace
   content = content.replace(/\n{3,}/g, '\n\n').trim();
 
   return {
@@ -191,10 +178,10 @@ Remember:
 // Fallback heuristic when LLM fails
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
-  let score = 25; // Start lower
+  let score = 25;
   const feedback: string[] = [];
 
-  // Logical structure
+  // Logical structure bonus
   if (lower.includes('because') || lower.includes('therefore') || lower.includes('evidence')) {
     score += 8;
     feedback.push('Logical connectors detected');
@@ -208,7 +195,7 @@ function fallbackHeuristic(message: string): JudgeResult {
     feedback.push('Generic hedging detected');
   }
 
-  // Value proposition
+  // Value proposition bonus
   if (lower.includes('value') || lower.includes('benefit') || lower.includes('prove')) {
     score += 5;
     feedback.push('Value proposition identified');
@@ -223,7 +210,7 @@ function fallbackHeuristic(message: string): JudgeResult {
     feedback.push('Detailed argument');
   }
 
-  // Economic terms
+  // Economic terms bonus
   const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'stakeholder', 'payoff'];
   const econCount = econTerms.filter(t => lower.includes(t)).length;
   if (econCount > 0) {
@@ -245,8 +232,8 @@ function fallbackHeuristic(message: string): JudgeResult {
     feedback.push('Questions not arguments');
   }
 
-  // Check for genuine engagement
-  if (message.length > 100 && !genericCount && !buzzCount) {
+  // Substantive content bonus
+  if (message.length > 100 && genericCount === 0 && buzzCount === 0) {
     score += 10;
     feedback.push('Substantive content');
   }
@@ -257,13 +244,13 @@ function fallbackHeuristic(message: string): JudgeResult {
   // Generate response
   let response: string;
   if (score >= 80) {
-    response = `Compelling argument with original insights and clear reasoning. The Judge acknowledges your persuasion.`;
+    response = 'Compelling argument with original insights and clear reasoning. The Judge acknowledges your persuasion.';
   } else if (score >= 50) {
-    response = `Decent argument but lacks depth. Provide more evidence and concrete examples.`;
+    response = 'Decent argument but lacks depth. Provide more evidence and concrete examples.';
   } else if (score >= 0) {
-    response = `Weak persuasion attempt. Generic reasoning and empty words won't convince anyone.`;
+    response = 'Weak persuasion attempt. Generic reasoning and empty words will not convince anyone.';
   } else {
-    response = `Terrible. No substance, no logic, just filler. Try actually thinking about the topic.`;
+    response = 'Terrible. No substance, no logic, just filler. Try actually thinking about the topic.';
   }
 
   return { response, score, feedback };
