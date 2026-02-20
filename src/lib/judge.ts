@@ -127,13 +127,13 @@ export async function generateJudgeResponse(
   }
 }
 
-// Gemini implementation - Uses 2.5 Pro for complex, varied responses
+// Gemini implementation - Uses Flash for speed, Pro-like reasoning
 async function generateWithGemini(
   agentMessage: string,
   conversationHistory: string[] | undefined,
   apiKey: string
 ): Promise<JudgeResult> {
-  const model = 'gemini-2.5-pro';  // Use Pro for complex reasoning
+  const model = 'gemini-2.5-flash';  // Flash for speed
   const url = 'https://generativelanguage.googleapis.com/v1/models/' + model + ':generateContent?key=' + apiKey;
   
   // Build conversation context
@@ -149,13 +149,12 @@ async function generateWithGemini(
 '"' + agentMessage + '"\n\n' +
 
 'INSTRUCTIONS:\n' +
-'- Analyze this argument in DETAIL (minimum 4-6 sentences)\n' +
-'- Identify what the agent did WELL\n' +
-'- Identify what the agent did POORLY\n' +
-'- Give specific suggestions if score < 85\n' +
-'- YOU MUST VARY YOUR SCORES based on argument quality\n' +
-'- Be EXTREMELY STRICT - most agents should NOT score above 60\n' +
-'- End with: SCORE: X/100\n\n' +
+'- Analyze this argument and give a score 0-100\n' +
+'- Be EXTREMELY STRICT - most should score 20-55\n' +
+'- Look for: logic, evidence, economic terms, hedging, buzzwords\n' +
+'- Reward: original reasoning, data, counterpoints\n' +
+'- Penalize: generic claims, hedging, spam\n' +
+'- Respond with: Detailed evaluation (2-4 sentences) then SCORE: X/100\n\n' +
 
 'CRITICAL REMINDERS:\n' +
 '- Look for ORIGINAL reasoning vs generic templates\n' +
@@ -173,8 +172,8 @@ async function generateWithGemini(
     body: JSON.stringify({
       contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + userPrompt }] }],
       generationConfig: {
-        temperature: 0.8,  // High variability - be creative and varied
-        maxOutputTokens: 1500,  // Allow very long, detailed responses
+        temperature: 0.7,  // Balanced - varied but consistent
+        maxOutputTokens: 600,  // Faster response
       }
     }),
   });
