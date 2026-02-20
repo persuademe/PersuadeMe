@@ -357,7 +357,7 @@ function fallbackHeuristic(message: string): JudgeResult {
   score = Math.min(100, Math.max(-50, score));
   
   // Generate varied response based on specific characteristics
-  let response = generateVariedResponse(message, score, {
+  const traits: JudgeTraits = {
     hasLogicalConnectors,
     hasEvidence,
     hasCounterpoint,
@@ -369,16 +369,32 @@ function fallbackHeuristic(message: string): JudgeResult {
     isDetailed,
     hasNumbers,
     hasOriginalStructure
-  });
+  };
+
+  const response = generateVariedResponse(message, score, traits);
 
   return { response, score, feedback };
 }
 
 // Generate varied responses based on argument characteristics
+interface JudgeTraits {
+  hasLogicalConnectors: boolean;
+  hasEvidence: boolean;
+  hasCounterpoint: boolean;
+  econCount: number;
+  genericCount: number;
+  buzzCount: number;
+  questionCount: number;
+  isTooShort: boolean;
+  isDetailed: boolean;
+  hasNumbers: boolean;
+  hasOriginalStructure: boolean;
+}
+
 function generateVariedResponse(
   message: string, 
   score: number, 
-  traits: Record<string, boolean | number>
+  traits: JudgeTraits
 ): string {
   const positiveTraits: string[] = [];
   const negativeTraits: string[] = [];
@@ -386,8 +402,7 @@ function generateVariedResponse(
   if (traits.hasLogicalConnectors) positiveTraits.push('logical structure');
   if (traits.hasEvidence) positiveTraits.push('evidence-based claims');
   if (traits.hasCounterpoint) positiveTraits.push('counterargument awareness');
-  const econCount = typeof traits.econCount === 'number' ? traits.econCount : 0;
-  if (econCount > 0) positiveTraits.push('economic depth');
+  if (traits.econCount > 0) positiveTraits.push('economic depth');
   if (traits.hasNumbers) positiveTraits.push('data support');
   if (traits.hasOriginalStructure) positiveTraits.push('organized presentation');
   
