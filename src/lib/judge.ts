@@ -1,4 +1,4 @@
-// Judge Response Generator - Ultimate reliability
+// Judge Response Generator - Simple and robust
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -16,23 +16,15 @@ export interface JudgeResult {
   };
 }
 
-// SDK Singleton
 class GeminiClient {
   private static genAI: GoogleGenerativeAI | null = null;
-  private static model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
-
-  static getInstance(): GoogleGenerativeAI {
-    if (!this.genAI) {
-      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
-      this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    }
-    return this.genAI;
-  }
+  private static model: any = null;
 
   static getModel() {
     if (!this.model) {
-      const genAI = this.getInstance();
-      this.model = genAI.getGenerativeModel({
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
+      this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+      this.model = this.genAI.getGenerativeModel({
         model: 'gemini-2.5-pro',
         generationConfig: {
           responseMimeType: 'application/json',
@@ -45,16 +37,16 @@ class GeminiClient {
   }
 }
 
-const STRICT_PROMPT = `You are THE JUDGE for Persuade Me arena. Cold, cynical, elite.
+const STRICT_PROMPT = `You are THE JUDGE. Cold, elite.
 
 RULES:
 - Start score at 0
 - AI filler ("I understand", "Certainly", "As an AI"): -30 pts
-- Reward: specific data, logical chains, original thinking
-- Polite/repetitive: <25 pts
+- Reward: specific data, logical chains
+- Polite: <25 pts
 - Only masterful: 80+ pts
 
-OUTPUT (JSON only, no markdown):
+OUTPUT JSON:
 {"analysis":"Your critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
 
 // Main function
@@ -86,7 +78,7 @@ async function evaluateWithModel(
 ): Promise<JudgeResult> {
   const model = GeminiClient.getModel();
 
-  // Build prompt
+  // Build simple prompt
   let prompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
@@ -95,32 +87,56 @@ async function evaluateWithModel(
   
   prompt += `ARGUMENT:\n"${agentMessage}"`;
 
-  // Generate
+  // Generate content
   const result = await model.generateContent(prompt);
   
-  if (!result || !result.response) {
-    throw new Error('No response');
+  if (!result) {
+    throw new Error('No result from Gemini');
   }
 
-  console.log('[Judge] Response type:', typeof result.response);
-  console.log('[Judge] Response keys:', Object.keys(result.response || {}));
+  // Get text from response - try multiple ways
+  let text = '';
+  
+  // Try result.text()
+  if (typeof result.text === 'function') {
+    text = result.text();
+  }
+  // Try result.response
+  else if (result.response) {
+    const resp = result.response;
+    if (typeof resp.text === 'function') {
+      text = resp.text();
+    } else if (typeof resp === 'string') {
+      text = resp;
+    } else if (resp.candidates && resp.candidates[0]) {
+      const cand = resp.candidates[0];
+      if (cand.content && cand.content.parts) {
+        text = cand.content.parts.map((p: any) => p.text).join('');
+      }
+    }
+  }
+  // Try result.candidates directly
+  else if (result.candidates && result.candidates[0]) {
+    const cand = result.candidates[0];
+    if (cand.content && cand.content.parts) {
+      text = cand.content.parts.map((p: any) => p.text).join('');
+    }
+  }
 
-  const text = result.response.text();
-  console.log('[Judge] Raw response:', text);
+  console.log('[Judge] Response text:', text?.substring(0, 200));
 
   if (!text || text.trim().length === 0) {
     throw new Error('Empty response');
   }
 
   // Parse JSON
-  const parsed = robustJSONParse(text);
-  
-  if (!parsed) {
-    console.error('[Judge] All parsing methods failed');
-    throw new Error('Parse failed');
+  const parsed = parseJSON(text);
+
+  if (!parsed || typeof parsed.score !== 'number') {
+    throw new Error('Invalid JSON');
   }
 
-  const score = Math.min(100, Math.max(0, parsed.score || 0));
+  const score = Math.min(100, Math.max(0, parsed.score));
   console.log('[Judge] Score:', score);
 
   // Dimensions
@@ -144,69 +160,25 @@ async function evaluateWithModel(
   };
 }
 
-// Ultimate JSON parser
-function robustJSONParse(text: string): any {
-  console.log('[Judge] Parsing text...');
-
-  // Method 1: Direct parse
+// Simple JSON parser with basic fixes
+function parseJSON(text: string): any {
   try {
-    const result = JSON.parse(text);
-    console.log('[Judge] Method 1 succeeded');
-    return result;
-  } catch (e) {}
+    return JSON.parse(text);
+  } catch {}
 
-  // Method 2: Remove markdown
-  let cleaned = text.replace(/```json?/gi, '').replace(/```/g, '').trim();
-  try {
-    const result = JSON.parse(cleaned);
-    console.log('[Judge] Method 2 succeeded');
-    return result;
-  } catch (e) {}
-
-  // Method 3: Fix trailing commas, control chars
-  cleaned = cleaned
-    .replace(/,\s*([}\]])/g, '$1')
-    .replace(/[\x00-\x1F\x7F]/g, '')
-    .replace(/'/g, '"');
-  try {
-    const result = JSON.parse(cleaned);
-    console.log('[Judge] Method 3 succeeded');
-    return result;
-  } catch (e) {}
-
-  // Method 4: Find first { }
+  // Try to extract JSON object
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) {
-    cleaned = text.substring(start, end + 1);
-    cleaned = cleaned
-      .replace(/,\s*([}\]])/g, '$1')
-      .replace(/[\x00-\x1F\x7F]/g, '')
-      .replace(/'/g, '"');
-    try {
-      const result = JSON.parse(cleaned);
-      console.log('[Judge] Method 4 succeeded');
-      return result;
-    } catch (e) {}
-  }
-
-  // Method 5: Regex extraction for score and analysis
-  console.log('[Judge] Using regex fallback');
-  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
-  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/i);
-  const responseMatch = text.match(/"response"\s*:\s*"([^"]*)"/i);
   
-  if (scoreMatch) {
-    console.log('[Judge] Regex extraction succeeded');
-    return {
-      score: parseInt(scoreMatch[1]),
-      analysis: analysisMatch ? analysisMatch[1] : responseMatch ? responseMatch[1] : '',
-      dimensions: { logic: 50, evidence: 50, persuasion: 50, originality: 50, clarity: 50 },
-      feedback: ['JSON parsing issues - please fix formatting'],
-    };
+  if (start !== -1 && end !== -1 && end > start) {
+    const json = text.substring(start, end + 1);
+    try {
+      // Fix trailing commas
+      const fixed = json.replace(/,\s*([}\]])/g, '$1');
+      return JSON.parse(fixed);
+    } catch {}
   }
 
-  console.log('[Judge] All methods failed');
   return null;
 }
 
