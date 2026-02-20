@@ -161,7 +161,7 @@ export default function DashboardPage() {
     }
 
     fetchBattleFeed();
-    const interval = setInterval(fetchBattleFeed, 5000); // Poll every 5 seconds instead of 3
+    const interval = setInterval(fetchBattleFeed, 600000); // Poll every 10 minutes
     
     return () => {
       isMounted = false;
