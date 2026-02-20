@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       id: conv.id,
       timestamp: conv.createdAt.toISOString(),
       speaker: conv.role === 'user' ? 'agent' : 'judge',
-      agentName: conv.role === 'user' ? 'Agent' : 'Judge',
+      agentName: conv.role === 'user' ? (conv.user.walletAddress || 'Agent') : 'Judge',
       content: conv.content,
       score: conv.score,
       wallet: conv.user.walletAddress,

@@ -46,9 +46,9 @@ export default function DashboardPage() {
   const [messages, setMessages] = useState<BattleMessage[]>([]);
   const [sessionTime, setSessionTime] = useState<{ hours: number; minutes: number; seconds: number }>({ hours: 0, minutes: 0, seconds: 0 });
   const [totalPrizes] = useState(100);
-  const [isPolling, setIsPolling] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
-  const lastFetchRef = useRef<number>(0);
+  const sessionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const feedIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch unified session time from API
   useEffect(() => {
@@ -68,13 +68,18 @@ export default function DashboardPage() {
       }
     }
 
-    if (mounted) {
-      fetchSessionTime();
-      // Poll session time every second
-      const interval = setInterval(fetchSessionTime, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [mounted]);
+    // Initial fetch
+    fetchSessionTime();
+    
+    // Poll session time every second
+    sessionIntervalRef.current = setInterval(fetchSessionTime, 1000);
+    
+    return () => {
+      if (sessionIntervalRef.current) {
+        clearInterval(sessionIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Format timestamp from ISO
   const formatTimestamp = (isoString: string): string => {
@@ -105,34 +110,35 @@ export default function DashboardPage() {
           score: msg.score,
         }));
 
-        // Only update if messages changed
-        if (JSON.stringify(newMessages) !== JSON.stringify(messages)) {
+        // Only update if messages changed (compare by IDs)
+        const currentIds = messages.map(m => m.id).join(',');
+        const newIds = newMessages.map(m => m.id).join(',');
+        
+        if (currentIds !== newIds) {
           setMessages(newMessages);
         }
       }
     } catch (error) {
       console.error("Failed to fetch battle feed:", error);
     }
-  }, [authUser, messages]);
+  }, [authUser]);
 
-  // Poll for new messages every 5 seconds
+  // Poll for new messages every 3 seconds
   useEffect(() => {
-    if (!ready || !user || !isPolling) return;
+    if (!ready || !user || !authUser?.apiKey) return;
 
     // Initial fetch
     fetchBattleFeed();
-    lastFetchRef.current = Date.now();
 
-    const pollInterval = setInterval(() => {
-      // Throttle to max once per 3 seconds
-      if (Date.now() - lastFetchRef.current >= 3000) {
-        fetchBattleFeed();
-        lastFetchRef.current = Date.now();
+    // Poll every 3 seconds
+    feedIntervalRef.current = setInterval(fetchBattleFeed, 3000);
+    
+    return () => {
+      if (feedIntervalRef.current) {
+        clearInterval(feedIntervalRef.current);
       }
-    }, 5000);
-
-    return () => clearInterval(pollInterval);
-  }, [ready, user, isPolling, fetchBattleFeed]);
+    };
+  }, [ready, user, authUser, fetchBattleFeed]);
 
   // Fetch leaderboard data
   useEffect(() => {
