@@ -64,7 +64,7 @@ export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY;
 
   // If no API key, use heuristic evaluation
   if (!apiKey) {
@@ -73,7 +73,9 @@ export async function generateJudgeResponse(
 
   try {
     // Determine which provider to use
-    if (process.env.OPENAI_API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
+      return await generateWithGemini(agentMessage, conversationHistory);
+    } else if (process.env.OPENAI_API_KEY) {
       return await generateWithOpenAI(agentMessage, conversationHistory);
     } else if (process.env.ANTHROPIC_API_KEY) {
       return await generateWithAnthropic(agentMessage, conversationHistory);
@@ -170,6 +172,62 @@ async function generateWithAnthropic(
   const data = await response.json();
   const content = data.content?.[0]?.text || '';
 
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        response: parsed.response || content,
+        score: Math.min(100, Math.max(-50, parsed.score || 0)),
+        feedback: parsed.feedback || [],
+      };
+    }
+  } catch {
+    // Fall through to heuristic
+  }
+
+  return { response: content, score: 0, feedback: ['Unable to parse LLM response'] };
+}
+
+// Gemini implementation
+async function generateWithGemini(
+  agentMessage: string,
+  conversationHistory?: string[]
+): Promise<JudgeResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = 'gemini-1.5-pro';
+  
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  
+  const historyText = conversationHistory 
+    ? `\n\nConversation history:\n${conversationHistory.join('\n')}` 
+    : '';
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: JUDGE_SYSTEM_PROMPT },
+          { text: `${historyText}\n\nEvaluate this persuasion attempt:\n\n${agentMessage}\n\nRespond with JSON: { "response": "...", "score": number, "feedback": [...] }` }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+      }
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Parse JSON from response
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
