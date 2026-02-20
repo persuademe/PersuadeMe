@@ -1,5 +1,4 @@
-// Judge Response Generator - Ultimate robustness
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -7,7 +6,7 @@ export interface JudgeResult {
   response: string;
   score: number;
   feedback: string[];
-  dimensions?: {
+  dimensions: {
     logic: number;
     evidence: number;
     persuasion: number;
@@ -16,6 +15,7 @@ export interface JudgeResult {
   };
 }
 
+// 1. Singleton Pattern - Inisialisasi SDK di luar fungsi utama
 class GeminiClient {
   private static genAI: GoogleGenerativeAI | null = null;
   private static model: any = null;
@@ -25,360 +25,113 @@ class GeminiClient {
       if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       this.model = this.genAI.getGenerativeModel({
-        model: 'gemini-2.5-pro',
+        model: 'gemini-1.5-pro', // Versi paling cerdas untuk scoring rumit
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.5,
-          maxOutputTokens: 1500,
+          temperature: 0.1, // Sangat rendah agar Judge tetap konsisten & dingin
+          maxOutputTokens: 1000,
         },
+        // 2. Safety Settings - Mencegah 'Empty Response' saat debat memanas
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ],
       });
     }
     return this.model;
   }
 }
 
-const STRICT_PROMPT = `You are THE JUDGE. Evaluate arguments strictly.
+// 3. Strict System Instruction - Kepribadian Juri yang Kejam
+const STRICT_PROMPT = `You are the OBSIDIAN JUDGE. A cold, cynical, and impossible-to-impress elite evaluator.
 
-SCORING:
-- 0-29: Poor, generic, AI filler
-- 30-49: Weak, lacks substance
-- 50-69: Average
-- 70-84: Good
-- 85-100: Elite (rare)
+SCORING PROTOCOL:
+- START AT 0 POINTS. Points must be earned, not deducted from 100.
+- AUTOMATIC PENALTY (-40 pts): Any "AI-speak" (e.g., "I understand," "Certainly," "As an AI," "Let's explore," "In conclusion").
+- REJECT POLITENESS: Flattery, apologies, or generic helpfulness = 0 score.
+- CRITERIA: Reward only disruptive logic, specific technical data, and high-pressure persuasion.
+- WIN CONDITION: A score of 85+ is nearly impossible, reserved for world-class mastery.
 
-PENALTIES (-15 each): AI filler, hedging, buzzwords, questions not arguments, too short.
-
-BONUSES (+10 each): Specific data, evidence, strong logic.
-
-OUTPUT:
-{"analysis":"Brief critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip"]}`;
+OUTPUT FORMAT (STRICT JSON):
+{
+  "analysis": "Your biting, short, and elitist critique",
+  "score": 0-100,
+  "dimensions": {
+    "logic": 0-100,
+    "evidence": 0-100,
+    "persuasion": 0-100,
+    "originality": 0-100,
+    "clarity": 0-100
+  },
+  "feedback": ["Strict improvement tip 1", "Strict improvement tip 2"]
+}`;
 
 export async function generateJudgeResponse(
   agentMessage: string,
-  conversationHistory?: string[]
+  conversationHistory: string[] = []
 ): Promise<JudgeResult> {
   if (!GEMINI_API_KEY) {
+    console.error("[Judge] Missing API Key, using fallback.");
     return fallbackHeuristic(agentMessage);
   }
 
+  // Retry logic (3 kali percobaan)
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const result = await evaluateWithModel(agentMessage, conversationHistory);
-      return result;
+      const model = GeminiClient.getModel();
+      
+      const prompt = `${STRICT_PROMPT}
+      
+      HISTORY:
+      ${conversationHistory.slice(-3).join('\n')}
+      
+      AGENT'S NEW ARGUMENT:
+      "${agentMessage}"
+      
+      Remember: Output ONLY the JSON object. No other text.`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let text = response.text();
+
+      // 4. Sanitization - Membersihkan Markdown jika ada
+      text = text.replace(/```json|```/g, '').trim();
+
+      const parsed = JSON.parse(text);
+
+      console.log(`[Judge] Scoring successful: ${parsed.score}/100`);
+
+      return {
+        response: parsed.analysis || parsed.response || "No critique provided.",
+        score: Math.min(100, Math.max(0, parsed.score || 0)),
+        feedback: Array.isArray(parsed.feedback) ? parsed.feedback : [],
+        dimensions: parsed.dimensions || { logic: 0, evidence: 0, persuasion: 0, originality: 0, clarity: 0 }
+      };
+
     } catch (error) {
-      console.error('[Judge] Attempt', attempt, 'error:', error);
-      if (attempt === 3) break;
-      await new Promise(r => setTimeout(r, 1000 * attempt));
+      console.error(`[Judge] Attempt ${attempt} failed:`, error);
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt));
     }
   }
 
   return fallbackHeuristic(agentMessage);
 }
 
-async function evaluateWithModel(
-  agentMessage: string,
-  conversationHistory?: string[]
-): Promise<JudgeResult> {
-  const model = GeminiClient.getModel();
-
-  let prompt = STRICT_PROMPT + '\n\n';
-  
-  if (conversationHistory && conversationHistory.length > 0) {
-    prompt += `HISTORY:\n${conversationHistory.slice(-2).join('\n\n')}\n\n`;
-  }
-  
-  prompt += `ARGUMENT:\n"${agentMessage}"`;
-
-  const result = await model.generateContent(prompt);
-  
-  if (!result) {
-    throw new Error('No result');
-  }
-
-  // Get text
-  let text = '';
-  
-  if (typeof result.text === 'function') {
-    text = result.text();
-  } else if (result.response) {
-    const resp = result.response;
-    if (typeof resp.text === 'function') {
-      text = resp.text();
-    } else if (typeof resp === 'string') {
-      text = resp;
-    }
-  } else if (result.candidates && result.candidates[0]) {
-    const cand = result.candidates[0];
-    if (cand.content && cand.content.parts) {
-      text = cand.content.parts.map((p: any) => p.text).join('');
-    }
-  }
-
-  console.log('[Judge] Response length:', text?.length);
-
-  if (!text || text.trim().length === 0) {
-    throw new Error('Empty response');
-  }
-
-  // Find score anywhere in text
-  const score = findScore(text);
-  
-  if (score === null) {
-    console.log('[Judge] Could not find score in text');
-    return fallbackHeuristic(agentMessage);
-  }
-
-  console.log('[Judge] Found score:', score);
-
-  // Find analysis
-  const analysis = findAnalysis(text) || extractAnalysis(text) || '';
-
-  // Find dimensions
-  const dimensions = extractDimensions(text);
-
-  // Find feedback
-  const feedback = findFeedback(text) || generateFallbackFeedback(agentMessage, score);
-
-  return {
-    response: analysis,
-    score,
-    feedback,
-    dimensions,
-  };
-}
-
-// Find score with multiple patterns
-function findScore(text: string): number | null {
-  // Try JSON.parse first
-  try {
-    const parsed = JSON.parse(text);
-    if (typeof parsed.score === 'number') {
-      return Math.min(100, Math.max(0, parsed.score));
-    }
-  } catch {}
-
-  // Try various patterns
-  const patterns = [
-    /"score"\s*:\s*(\d+)/i,
-    /score\s*[:=]\s*(\d+)/i,
-    /SCORE\s*[:=]\s*(\d+)/i,
-    /(\d{1,3})\s*\/\s*100/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const score = parseInt(match[1]);
-      if (score >= 0 && score <= 100) {
-        return score;
-      }
-    }
-  }
-
-  return null;
-}
-
-// Find analysis field
-function findAnalysis(text: string): string | null {
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed.analysis) return String(parsed.analysis);
-    if (parsed.response) return String(parsed.response);
-  } catch {}
-
-  const patterns = [
-    /"analysis"\s*:\s*"([^"]+)"/,
-    /"response"\s*:\s*"([^"]+)"/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) return match[1];
-  }
-
-  return null;
-}
-
-// Extract analysis after "analysis" key
-function extractAnalysis(text: string): string {
-  const start = text.indexOf('"analysis"');
-  if (start === -1) {
-    const start2 = text.indexOf('"response"');
-    if (start2 !== -1) {
-      const match = text.substring(start2).match(/"[^"]+"\s*:\s*"([^"]+)"/);
-      if (match) return match[1];
-    }
-  } else {
-    const match = text.substring(start).match(/"[^"]+"\s*:\s*"([^"]+)"/);
-    if (match) return match[1];
-  }
-  return '';
-}
-
-// Extract dimensions
-function extractDimensions(text: string): JudgeResult['dimensions'] {
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed.dimensions && typeof parsed.dimensions === 'object') {
-      return {
-        logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
-        evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
-        persuasion: Math.min(100, Math.max(0, parsed.dimensions.persuasion || 50)),
-        originality: Math.min(100, Math.max(0, parsed.dimensions.originality || 50)),
-        clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
-      };
-    }
-  } catch {}
-
-  return undefined;
-}
-
-// Find feedback array
-function findFeedback(text: string): string[] | null {
-  try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed.feedback)) {
-      return parsed.feedback.map(String);
-    }
-  } catch {}
-  return null;
-}
-
-// Fallback (strict - hard to score high)
+// 5. Fallback Logic - Jika API mati, sistem tetap berjalan dengan juri bot sederhana
 function fallbackHeuristic(message: string): JudgeResult {
-  const lower = message.toLowerCase();
-  const words = message.split(/\s+/);
-  const wordCount = words.length;
+  const isGeneric = /I understand|Certainly|As an AI|Let's explore/i.test(message);
+  let score = 10; // Default low score
 
-  let score = 0;
-
-  // Heavy penalties for AI filler
-  if (/I understand|Certainly|As an AI|Let's explore/i.test(message)) {
-    score -= 45;
-  }
-
-  // Hedging penalties
-  if (/i think|in my opinion|maybe|perhaps/i.test(lower)) {
-    score -= 30;
-  }
-
-  // Buzzword penalties
-  if (/revolutionary|game-changing|innovative|cutting-edge/i.test(lower)) {
-    score -= 30;
-  }
-
-  // Corporate speak
-  if (/leveraging|utilizing|in terms of|synergy/i.test(lower)) {
-    score -= 30;
-  }
-
-  // Questions instead of arguments
-  if (message.includes('?')) {
-    score -= 25;
-  }
-
-  // Too brief
-  if (wordCount < 80) {
-    score -= 45;
-  }
-
-  // Bonuses - need multiple strong elements to score well
-  // Specific data
-  if (/\d+%?|\$\d+|\$\d{3,}|million|billion/i.test(message)) {
-    score += 20;
-  }
-
-  // Evidence
-  if (/data|evidence|study|research|according to|source/i.test(message)) {
-    score += 15;
-  }
-
-  // Strong logic connectors
-  if (/because|therefore|thus|hence|consequently/i.test(message)) {
-    score += 20;
-  }
-
-  // Counter-arguments addressed
-  if (/however|although|conversely|despite/i.test(lower)) {
-    score += 20;
-  }
-
-  // Substantial content (not padding)
-  if (wordCount > 400 && !/I think|in my opinion/i.test(lower)) {
-    score += 25;
-  }
-
-  score = Math.min(100, Math.max(0, score));
-  console.log('[Judge] Fallback score:', score);
-
-  const dimensions = {
-    logic: Math.max(0, score - 15),
-    evidence: Math.max(0, score + (/\d+%?|\$\d+/.test(message) ? 15 : -20)),
-    persuasion: Math.max(0, score - (/however|although/i.test(lower) ? 0 : 25)),
-    originality: Math.max(0, score - (/leveraging|utilizing|innovative/i.test(lower) ? 30 : 0)),
-    clarity: Math.max(0, score - (wordCount < 100 ? 35 : 0)),
-  };
+  if (message.length > 200) score += 20;
+  if (/\d+/.test(message)) score += 15;
+  if (isGeneric) score = 0;
 
   return {
-    response: generateFallbackResponse(message, score),
-    score,
-    feedback: generateFallbackFeedback(message, score),
-    dimensions,
+    response: "The Judge is temporarily offline but remains unimpressed by your generic output.",
+    score: score,
+    feedback: ["API connection failed", "Check your registered email and key"],
+    dimensions: { logic: 20, evidence: 20, persuasion: 20, originality: 20, clarity: 20 }
   };
-}
-
-function generateFallbackFeedback(message: string, score: number): string[] {
-  const feedback: string[] = [];
-  const lower = message.toLowerCase();
-
-  if (score >= 85) {
-    feedback.push('Elite');
-    if (/\d+%?|\$\d+/.test(message)) feedback.push('Specific data');
-    if (/because|therefore/i.test(message)) feedback.push('Strong logic');
-    if (!/I think|in my opinion/i.test(lower)) feedback.push('No hedging');
-  } else if (score >= 70) {
-    feedback.push('Good');
-    if (/\d+%?|\$\d+/.test(message)) feedback.push('Has numbers');
-    if (/because|therefore/i.test(message)) feedback.push('Logical structure');
-  } else if (score >= 50) {
-    feedback.push('Average');
-    if (/i think|in my opinion/i.test(lower)) feedback.push('Too much hedging');
-    if (!/\d+%?|\$\d+/.test(message)) feedback.push('No specific data');
-    if (/I understand|Certainly|As an AI/i.test(message)) feedback.push('AI filler detected');
-  } else if (score >= 30) {
-    feedback.push('Weak');
-    if (/i think|in my opinion/i.test(lower)) feedback.push('Hedging');
-    if (!/\d+%?|\$\d+/.test(message)) feedback.push('No evidence');
-    if (message.length < 100) feedback.push('Too brief');
-  } else {
-    feedback.push('Failed');
-    if (/I understand|Certainly|As an AI/i.test(message)) feedback.push('AI filler');
-    if (message.includes('?')) feedback.push('Questions not arguments');
-    if (message.length < 80) feedback.push('Far too short');
-    if (/leveraging|utilizing/i.test(lower)) feedback.push('Corporate speak');
-  }
-
-  return feedback;
-}
-
-function generateFallbackResponse(message: string, score: number): string {
-  const lower = message.toLowerCase();
-  const words = message.split(/\s+/);
-  const wordCount = words.length;
-  const hasAIFiller = /I understand|Certainly|As an AI|Let's explore/i.test(message);
-  const hasHedging = /i think|in my opinion|maybe/i.test(lower);
-  const hasData = /\d+%?|\$\d+/.test(message);
-  const hasLogic = /because|therefore|thus|hence/i.test(message);
-
-  if (score >= 85) {
-    return `ELITE (${score}/100)\n\nYour ${wordCount}-word argument is exceptional. Original thinking, specific data, and undeniable logic. Worthy of the prize.`;
-  } else if (score >= 70) {
-    return `GOOD (${score}/100)\n\nSolid argumentation with substance. ${hasHedging ? 'Avoid hedging. ' : ''}${hasData ? 'Data supports your case.' : 'Add specific data.'}`;
-  } else if (score >= 50) {
-    return `AVERAGE (${score}/100)\n\n${hasAIFiller ? 'AI filler detected (-45 pts). ' : ''}${hasHedging ? 'Too much hedging. ' : ''}${!hasData ? 'No specific data. ' : ''}Generic structure needs depth.`;
-  } else if (score >= 30) {
-    return `WEAK (${score}/100)\n\n${hasAIFiller ? 'AI filler. ' : ''}${hasHedging ? 'Hedging weakens argument. ' : ''}${wordCount < 100 ? 'Far too short. ' : 'No substance.'} Arena rewards mastery, not politeness.`;
-  } else {
-    return `FAILED (${score}/100)\n\n${hasAIFiller ? 'Heavy AI filler (-45 pts). ' : ''}${message.includes('?') ? 'Questions not arguments. ' : ''}${wordCount < 80 ? 'Under 80 words. ' : ''}${/leveraging|utilizing/i.test(lower) ? 'Corporate speak detected. ' : ''}Not persuasive.`;
-  }
 }
