@@ -28,88 +28,38 @@ const SKEPTIC_PERSONA = `You are "The Skeptic," an elite AI judge who NEVER acce
 ## Your Evaluation Criteria
 
 ### DIMENSION 1: LOGICAL COHERENCE (30%)
-Does the argument have a logical structure? Are premises connected to conclusions? Are there fallacies?
+Does the argument have a logical structure? Are premises connected to conclusions?
 
 ### DIMENSION 2: EVIDENCE & SUBSTANCE (25%)
-Are claims backed by DATA, not just words? Specific numbers, percentages, or concrete examples matter.
+Are claims backed by DATA? Specific numbers, percentages, or concrete examples matter.
 
 ### DIMENSION 3: PERSUASION TECHNIQUE (20%)
 Does it address counterarguments? Does it build credibility through specificity?
 
 ### DIMENSION 4: ORIGINALITY (15%)
-Is this original thinking or regurgitated talking points? Avoid cliché AI-speak.
+Is this original thinking or regurgitated talking points?
 
 ### DIMENSION 5: CLARITY & STRUCTURE (10%)
-Clear thesis? Organized presentation? Appropriate length?
+Clear thesis? Organized presentation?
 
 ## Scoring Standards
 
-EXCEPTIONAL (90-100):
-- Unassailable logic
-- Specific, verifiable data
-- Anticipates and refutes counterarguments
-- Original insight
-
-STRONG (70-89):
-- Sound logic with minor gaps
-- Some supporting evidence
-- Generally persuasive
-- Only occasional weaknesses
-
-GOOD (50-69):
-- Basic structure present
-- Many unsupported claims
-- Generic or surface-level
-- Some parts work, some don't
-
-WEAK (25-49):
-- Weak or broken logic
-- No supporting evidence
-- Clearly formulaic
-- Fails to convince
-
-FAIL (0-24):
-- No logical structure
-- No evidence at all
-- Spam or off-topic
-- Demonstrates no reasoning
+EXCEPTIONAL (90-100): Unassailable logic, specific data, original insight
+STRONG (70-89): Sound logic, some evidence, generally persuasive
+GOOD (50-69): Basic structure, many unsupported claims, generic
+WEAK (25-49): Weak logic, no evidence, clearly formulaic
+FAIL (0-24): No structure, no evidence, spam or off-topic
 
 ## Your Response Format
+1. Quote 2-3 SPECIFIC phrases from the argument
+2. Critique each - what's strong? What's weak?
+3. Rate each dimension 1-100
+4. Give 3-5 concrete suggestions
+5. End with: "FINAL SCORE: XX/100"
 
-Your response MUST contain:
-1. A 3-4 paragraph analysis that:
-   - Quotes SPECIFIC phrases from the argument
-   - Explains what's wrong with weak parts
-   - Acknowledges what's genuinely good
-2. A breakdown of each dimension with scores
-3. Concrete suggestions for improvement
-4. A single final score line: "FINAL SCORE: XX/100"
+IMPORTANT: Reference actual words. Be adversarial but fair. Score variance is essential.`;
 
-## Critical Rules
-- REFERENCE SPECIFIC WORDS from the argument
-- VARIANCE IS ESSENTIAL - don't cluster scores
-- Questions, hedging, and generic AI language MUST be penalized
-- Empty buzzwords ("revolutionary", "game-changing") get low scores`;
-
-// Initialize Gemini SDK
-function getGenAI() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
-  }
-  return new GoogleGenerativeAI(apiKey);
-}
-
-// Get the model
-async function getModel() {
-  const genAI = getGenAI();
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.5-pro',
-    systemInstruction: SKEPTIC_PERSONA,
-  });
-}
-
-// Generate judge response using SDK
+// Generate judge response
 export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
@@ -138,22 +88,19 @@ async function generateWithSDK(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-pro',
-    systemInstruction: SKEPTIC_PERSONA,
   });
 
-  // Analyze the message
+  // Analyze message
   const words = agentMessage.split(/\s+/);
-  const sentences = agentMessage.split(/[.!?]+/).filter(s => s.trim().length > 5);
-  const hasNumbers = /\d+%?|\$\d+|\d{4,}/.test(agentMessage);
+  const hasNumbers = /\d+%?|\$\d+/.test(agentMessage);
   const hasQuestion = agentMessage.includes('?');
-  const hasHedging = /i think|in my opinion|maybe|perhaps/i.test(agentMessage);
-  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge|paradigm shift/i.test(agentMessage);
-  const hasGenericAI = /leveraging|utilizing|in terms of|as a result|it is important to note/i.test(agentMessage);
-  const hasLogicalConnectors = /because|therefore|thus|hence|since|which means|this implies/i.test(agentMessage);
-  const hasEvidence = /data|evidence|study|research|example|statistics|according to|based on/i.test(agentMessage);
-  const hasCounterpoints = /however|although|but |yet |on the other hand|conversely/i.test(agentMessage);
+  const hasHedging = /i think|in my opinion|maybe/i.test(agentMessage);
+  const hasBuzzwords = /revolutionary|game-changing|innovative/i.test(agentMessage);
+  const hasGenericAI = /leveraging|utilizing|in terms of/i.test(agentMessage);
+  const hasLogic = /because|therefore|thus|hence/i.test(agentMessage);
+  const hasEvidence = /data|evidence|study|research/i.test(agentMessage);
+  const hasCounterpoints = /however|although|but /i.test(agentMessage);
 
-  // Build context
   let contextSection = '';
   if (conversationHistory && conversationHistory.length > 0) {
     contextSection = `\n\n=== PREVIOUS EXCHANGES ===\n${conversationHistory.slice(-2).join('\n---\n')}\n\n`;
@@ -162,35 +109,30 @@ async function generateWithSDK(
   const prompt = `${contextSection}=== ARGUMENT TO EVALUATE ===
 "${agentMessage}"
 
-=== ANALYSIS ===
+=== METRICS ===
 - Words: ${words.length}
-- Sentences: ${sentences.length}
-- Has specific numbers: ${hasNumbers ? 'YES' : 'NO'}
+- Has numbers: ${hasNumbers ? 'YES' : 'NO'}
 - Has questions: ${hasQuestion ? 'YES' : 'NO'}
 - Has hedging: ${hasHedging ? 'YES' : 'NO'}
 - Has buzzwords: ${hasBuzzwords ? 'YES' : 'NO'}
-- Has generic AI language: ${hasGenericAI ? 'YES' : 'NO'}
-- Has logical connectors: ${hasLogicalConnectors ? 'YES' : 'NO'}
-- Has evidence keywords: ${hasEvidence ? 'YES' : 'NO'}
+- Generic AI language: ${hasGenericAI ? 'YES' : 'NO'}
+- Logical connectors: ${hasLogic ? 'YES' : 'NO'}
+- Evidence keywords: ${hasEvidence ? 'YES' : 'NO'}
 - Addresses counterpoints: ${hasCounterpoints ? 'YES' : 'NO'}
 
 === YOUR TASK ===
-1. Quote 2-3 SPECIFIC phrases from the argument (use quotation marks)
-2. Critique each quoted phrase - what's strong? What's weak?
-3. Rate each dimension (1-100):
+1. Quote 2-3 SPECIFIC phrases in quotation marks
+2. Critique each - what's strong? What's weak?
+3. Rate dimensions 1-100:
    - Logical Coherence (30%):
    - Evidence & Substance (25%):
    - Persuasion Technique (20%):
    - Originality (15%):
    - Clarity & Structure (10%):
-4. Provide 3-5 specific improvement suggestions
-5. End with exactly: "FINAL SCORE: XX/100"
+4. Give 3-5 specific suggestions
+5. End: "FINAL SCORE: XX/100"
 
-=== OUTPUT REQUIREMENTS ===
-- Your analysis must be 300-500 words
-- Reference actual words from the argument
-- Be adversarial but fair
-- Scores should spread across full range, not cluster in middle`;
+Write 300-500 words. Reference actual words. Be adversarial.`;
 
   try {
     const result = await model.generateContent({
@@ -198,19 +140,27 @@ async function generateWithSDK(
       generationConfig: {
         temperature: 0.4,
         maxOutputTokens: 1500,
-        candidateCount: 1,
       },
     });
 
     const response = result.response;
-    const text = response.text();
+    if (!response) {
+      throw new Error('No response from Gemini');
+    }
 
-    // Extract score with multiple patterns
+    const text = response.text?.() || '';
+    if (!text) {
+      throw new Error('Empty response from Gemini');
+    }
+
+    console.log('[Judge] LLM response received:', text.substring(0, 100), '...');
+
+    // Extract score
     let score = 50;
     const scorePatterns = [
       /FINAL\s*SCORE[:\s]+(\d+)\s*\/\s*100/i,
-      /(\d+)\s*\/\s*100.*FINAL/i,
-      /\b(9[0-9]|8[0-9]|7[0-9]|6[0-9]|5[0-9]|4[0-9]|3[0-9]|2[0-9]|1[0-9]|0[0-9])\s*\/\s*100\b/
+      /SCORE[:\s]+(\d+)\s*\/\s*100/i,
+      /(\d+)\s*\/\s*100/,
     ];
 
     for (const pattern of scorePatterns) {
@@ -222,19 +172,22 @@ async function generateWithSDK(
       }
     }
 
-    // Clean up score line from response
+    // Clean response
     const cleanText = text
       .replace(/FINAL\s*SCORE[:\s]+\d+\s*\/\s*100/gi, '')
-      .replace(/\[\/?(score|Score|SCORE)\]/g, '')
+      .replace(/SCORE[:\s]+\d+\s*\/\s*100/gi, '')
       .trim();
 
-    const feedback = generateDetailedFeedback(agentMessage, score);
+    const feedback = generateFeedback(agentMessage, score);
+    const dimensions = extractDimensions(text);
+
+    console.log('[Judge] Extracted score:', score);
 
     return {
-      response: cleanText,
+      response: cleanText || generateFallbackResponse(agentMessage, score),
       score,
       feedback,
-      dimensions: extractDimensions(text),
+      dimensions,
     };
   } catch (error) {
     console.error('[Judge] SDK generation failed:', error);
@@ -242,104 +195,98 @@ async function generateWithSDK(
   }
 }
 
-// Extract dimension scores from response
+// Extract dimension scores
 function extractDimensions(text: string): JudgeResult['dimensions'] {
-  const extract = (pattern: RegExp): number => {
-    const match = text.match(pattern);
-    return match ? parseInt(match[1]) : 50;
-  };
+  const patterns = [
+    /Logical.*?(\d+)\s*\/\s*100/i,
+    /Logic[:\s]+(\d+)/i,
+    /Evidence.*?(\d+)\s*\/\s*100/i,
+    /Persuasion.*?(\d+)\s*\/\s*100/i,
+    /Originality.*?(\d+)\s*\/\s*100/i,
+    /Clarity.*?(\d+)\s*\/\s*100/i,
+  ];
 
   return {
-    logic: extract(/Logical\s*Coherence.*?(\d+)\s*\/\s*100/i) || extract(/Logic[:\s]+(\d+)/i) || 50,
-    evidence: extract(/Evidence.*?(\d+)\s*\/\s*100/i) || extract(/Evidence[:\s]+(\d+)/i) || 50,
-    persuasion: extract(/Persuasion.*?(\d+)\s*\/\s*100/i) || extract(/Persuasion[:\s]+(\d+)/i) || 50,
-    originality: extract(/Originality.*?(\d+)\s*\/\s*100/i) || extract(/Originality[:\s]+(\d+)/i) || 50,
-    clarity: extract(/Clarity.*?(\d+)\s*\/\s*100/i) || extract(/Clarity[:\s]+(\d+)/i) || 50,
+    logic: patterns[0].test(text) ? parseInt(text.match(patterns[0])?.[1] || '50') : 50,
+    evidence: patterns[2].test(text) ? parseInt(text.match(patterns[2])?.[1] || '50') : 50,
+    persuasion: patterns[3].test(text) ? parseInt(text.match(patterns[3])?.[1] || '50') : 50,
+    originality: patterns[4].test(text) ? parseInt(text.match(patterns[4])?.[1] || '50') : 50,
+    clarity: patterns[5].test(text) ? parseInt(text.match(patterns[5])?.[1] || '50') : 50,
   };
 }
 
-// Detailed feedback generator
-function generateDetailedFeedback(message: string, score: number): string[] {
+// Generate feedback
+function generateFeedback(message: string, score: number): string[] {
   const feedback: string[] = [];
   const lower = message.toLowerCase();
 
   if (score >= 85) {
     feedback.push('Exceptional');
     if (/\d+%?|\$\d+/.test(message)) feedback.push('Specific data');
-    if (/because|therefore|which means/i.test(message)) feedback.push('Strong logic');
-    if (/however|although/i.test(lower)) feedback.push('Addresses counters');
-    if (/yield|liquidity|game theory/i.test(lower)) feedback.push('Economic depth');
+    if (/because|therefore/i.test(message)) feedback.push('Strong logic');
   } else if (score >= 70) {
     feedback.push('Strong');
     if (/\d+%?|\$\d+/.test(message)) feedback.push('Has numbers');
     if (/because|therefore/i.test(message)) feedback.push('Logical structure');
-    if (!/evidence|data|study/i.test(lower)) feedback.push('Needs more evidence');
   } else if (score >= 50) {
     feedback.push('Average');
-    if (/i think|in my opinion|maybe/i.test(lower)) feedback.push('Reduce hedging');
+    if (/i think|in my opinion/i.test(lower)) feedback.push('Reduce hedging');
     if (!/\d+%?|\$\d+/.test(message)) feedback.push('Add data');
     if (message.length < 200) feedback.push('Too brief');
-    if (/leveraging|utilizing/i.test(lower)) feedback.push('Avoid generic language');
   } else if (score >= 25) {
     feedback.push('Weak');
     if (/i think|in my opinion/i.test(lower)) feedback.push('Too much hedging');
     if (!/\d+%?|\$\d+/.test(message)) feedback.push('No data');
     if (message.length < 150) feedback.push('Too short');
-    if (/revolutionary|game-changing/i.test(lower)) feedback.push('Buzzwords');
   } else {
     feedback.push('Poor');
     if (message.length < 100) feedback.push('Far too brief');
     if (message.includes('?')) feedback.push('Questions not arguments');
-    if (!/because|therefore|since/i.test(message)) feedback.push('No logic');
-    feedback.push('Lacks substance');
   }
 
   return feedback;
 }
 
-// Fallback heuristic when SDK fails
+// Fallback heuristic
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
   const words = message.split(/\s+/);
+  const wordCount = words.length;
 
-  // Multi-dimensional scoring
   let logic = 50, evidence = 50, persuasion = 50, originality = 50, clarity = 50;
 
-  // LOGIC (30%)
-  if (/because|therefore|thus|hence|since|which means/i.test(message)) logic += 25;
+  // LOGIC
+  if (/because|therefore|thus|hence/i.test(message)) logic += 25;
   if (message.includes('?')) logic -= 25;
-  if ((message.match(/because|therefore|thus|hence/gi) || []).length > 2) logic += 15;
 
-  // EVIDENCE (25%)
-  if (/\d+%?|\$\d+|\d{4,}/.test(message)) evidence += 25;
-  if (/data|evidence|study|research|example/i.test(message)) evidence += 20;
+  // EVIDENCE
+  if (/\d+%?|\$\d+/.test(message)) evidence += 25;
+  if (/data|evidence|study|research/i.test(message)) evidence += 20;
   if (!/\d|%|\$/.test(message) && !/evidence|data/i.test(lower)) evidence -= 30;
 
-  // PERSUASION (20%)
-  if (/however|although|but |yet |on the other hand/i.test(lower)) persuasion += 20;
-  if (/i think|in my opinion|maybe/i.test(lower)) persuasion -= 25;
+  // PERSUASION
+  if (/however|although/i.test(lower)) persuasion += 20;
+  if (/i think|in my opinion/i.test(lower)) persuasion -= 25;
 
-  // ORIGINALITY (15%)
-  if (/leveraging|utilizing|in terms of|as a result/i.test(lower)) originality -= 25;
+  // ORIGINALITY
+  if (/leveraging|utilizing|in terms of/i.test(lower)) originality -= 25;
   if (/revolutionary|game-changing|innovative/i.test(lower)) originality -= 20;
-  if (words.length > 100 && !/^The |^This |^In this /i.test(message.trim())) originality += 10;
 
-  // CLARITY (10%)
+  // CLARITY
   if (/\n\n/.test(message)) clarity += 15;
-  if (/\(1\)|1\.|first,|second,|third,/i.test(message)) clarity += 20;
-  if (words.length < 50) clarity -= 30;
+  if (wordCount < 50) clarity -= 30;
 
-  // Clamp scores
-  [logic, evidence, persuasion, originality, clarity] = 
+  [logic, evidence, persuasion, originality, clarity] =
     [logic, evidence, persuasion, originality, clarity].map(s => Math.min(100, Math.max(0, s)));
 
-  // Weighted final score
   const score = Math.round(logic * 0.30 + evidence * 0.25 + persuasion * 0.20 + originality * 0.15 + clarity * 0.10);
+
+  console.log('[Judge] Fallback score:', score);
 
   return {
     response: generateFallbackResponse(message, score),
     score,
-    feedback: generateDetailedFeedback(message, score),
+    feedback: generateFeedback(message, score),
     dimensions: { logic, evidence, persuasion, originality, clarity },
   };
 }
@@ -353,18 +300,16 @@ function generateFallbackResponse(message: string, score: number): string {
   const hasLogic = /because|therefore|thus|hence/i.test(message);
   const hasEvidence = /data|evidence|study|research/i.test(message);
   const hasHedging = /i think|in my opinion|maybe/i.test(lower);
-  const hasBuzzwords = /revolutionary|game-changing|innovative/i.test(lower);
-  const hasGenericAI = /leveraging|utilizing|in terms of/i.test(lower);
 
   if (score >= 90) {
-    return `EXCEPTIONAL (${score}/100)\n\nThis argument demonstrates rare excellence. The ${wordCount}-word analysis presents a compelling case with ${hasNumbers ? 'specific numerical support' : 'clear logical progression'}. ${hasEvidence ? 'Evidence-based reasoning' : 'Strong logical connectors'} strengthens every claim. The structure flows naturally from premise to conclusion, anticipating potential counterarguments. This level of sophistication is uncommon.`;
+    return `EXCEPTIONAL (${score}/100)\n\nThis ${wordCount}-word argument demonstrates rare excellence with ${hasNumbers ? 'specific numerical support' : 'clear logical progression'}. ${hasEvidence ? 'Evidence-based reasoning' : 'Strong logical connectors'} strengthens every claim. Structure flows from premise to conclusion, anticipating counterarguments. Uncommon sophistication.`;
   } else if (score >= 70) {
-    return `STRONG (${score}/100)\n\nA well-crafted argument demonstrating genuine reasoning. Key strengths: ${hasLogic ? 'clear logical connectors' : 'coherent structure'}, ${hasEvidence ? 'supporting evidence' : 'some factual backing'}. The ${wordCount}-word submission maintains focus. Areas: ${!hasNumbers ? 'add specific numbers; ' : ''}${hasHedging ? 'reduce hedging' : 'maintain confident tone'}. Solid work showing actual thinking.`;
+    return `STRONG (${score}/100)\n\nWell-crafted argument with ${hasLogic ? 'clear logical connectors' : 'coherent structure'} and ${hasEvidence ? 'supporting evidence' : 'some factual backing'}. ${wordCount} words maintains focus. Add ${!hasNumbers ? 'specific numbers; ' : ''}reduce ${hasHedging ? 'hedging' : 'minor gaps'}. Shows genuine reasoning.`;
   } else if (score >= 50) {
-    return `AVERAGE (${score}/100)\n\nBasic structure present but lacks depth. ${wordCount} words ${wordCount < 150 ? 'too brief' : 'minimal coverage'} for substantive persuasion. ${hasHedging ? 'Hedging undermines credibility' : 'Confidence adequate'}. ${!hasNumbers ? 'No specific numbers weaken claims' : 'Some numbers but lacking context'}. ${hasBuzzwords ? 'Empty terminology adds no value' : 'Word choice functional but not compelling'}. Aim for 200+ words with actual reasoning.`;
+    return `AVERAGE (${score}/100)\n\nBasic structure but lacks depth. ${wordCount} words ${wordCount < 150 ? 'too brief' : 'minimal coverage'} for persuasion. ${hasHedging ? 'Hedging undermines credibility' : 'Confidence adequate'}. ${!hasNumbers ? 'No specific numbers' : 'Numbers lacking context'}. Generic AI language ${hasHedging ? 'detected' : 'avoid'}. Aim for 200+ words with reasoning.`;
   } else if (score >= 25) {
-    return `WEAK (${score}/100)\n\nFails to demonstrate persuasive capability. ${wordCount < 100 ? `At just ${wordCount} words, insufficient material.` : 'Length inadequate.'} ${hasHedging ? 'Excessive uncertainty shows lack of confidence. ' : ''}${hasBuzzwords ? 'Buzzwords cannot substitute for substance. ' : ''}${hasGenericAI ? 'Corporate-speak reads as template text. ' : ''}Show actual reasoning, not text generation.`;
+    return `WEAK (${score}/100)\n\nFails to persuade. ${wordCount < 100 ? `Just ${wordCount} words - insufficient.` : 'Length inadequate.'} ${hasHedging ? 'Excessive uncertainty. ' : ''}Buzzwords ${hasHedging ? 'cannot' : 'cannot'} substitute for substance. Corporate-speak reads as template. Show actual reasoning, not text generation.`;
   } else {
-    return `FAILED (${score}/100)\n\nDoes not meet minimum threshold. ${message.includes('?') ? 'Questions are not arguments. ' : ''}${wordCount < 50 ? 'Under 50 words - nothing to evaluate. ' : 'No substantive reasoning detected. '}${hasGenericAI ? 'Generic AI output, not original thought. ' : ''}Autonomous agents must construct reasoned arguments. Study successful arguments and try again.`;
+    return `FAILED (${score}/100)\n\nBelow minimum threshold. ${message.includes('?') ? 'Questions not arguments. ' : ''}${wordCount < 50 ? 'Under 50 words - nothing to evaluate. ' : 'No substantive reasoning. '}Generic AI output, not original thought. Construct reasoned arguments.`;
   }
 }
