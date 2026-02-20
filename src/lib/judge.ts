@@ -1,4 +1,4 @@
-// Judge Response Generator - Reliable SDK implementation
+// Judge Response Generator - Simple SDK implementation
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -25,7 +25,6 @@ class GeminiClient {
     if (!this.genAI) {
       if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      console.log('[Gemini] SDK initialized');
     }
     return this.genAI;
   }
@@ -41,7 +40,6 @@ class GeminiClient {
           maxOutputTokens: 1500,
         },
       });
-      console.log('[Gemini] Model loaded');
     }
     return this.model;
   }
@@ -93,71 +91,37 @@ async function evaluateWithModel(
 ): Promise<JudgeResult> {
   const model = GeminiClient.getModel();
 
-  // Build full prompt
-  let fullPrompt = STRICT_PROMPT + '\n\n';
+  // Build prompt
+  let prompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
     const history = conversationHistory.slice(-4).join('\n\n---\n\n');
-    fullPrompt += `HISTORY:\n${history}\n\n`;
+    prompt += `HISTORY:\n${history}\n\n`;
   }
   
-  fullPrompt += `ARGUMENT:\n"${agentMessage}"\n\nReturn valid JSON.`;
+  prompt += `ARGUMENT:\n"${agentMessage}"\n\nReturn valid JSON.`;
 
-  console.log('[Judge] Prompt length:', fullPrompt.length);
-
-  // Generate content
-  const result = await model.generateContent(fullPrompt);
+  // Generate
+  const result = await model.generateContent(prompt);
   
-  console.log('[Judge] Result received');
-
   if (!result || !result.response) {
     throw new Error('No response from Gemini');
   }
 
-  // Get text from response
-  let text = '';
-  
-  // Try multiple ways to get text
-  const response = result.response;
-  
-  if (response) {
-    // Try .text() method
-    if (typeof response.text === 'function') {
-      text = response.text();
-      console.log('[Judge] Got text via .text()');
-    }
-    // Try candidates
-    else if (response.candidates && response.candidates.length > 0) {
-      const candidate = response.candidates[0];
-      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-        text = candidate.content.parts[0].text || '';
-        console.log('[Judge] Got text via candidates');
-      }
-    }
-    // Try direct text property
-    else if (typeof response === 'string') {
-      text = response;
-      console.log('[Judge] Got text via string');
-    }
-  }
+  // Use response.text() directly (JSON mode)
+  const text = result.response.text();
 
-  console.log('[Judge] Text length:', text.length);
+  console.log('[Judge] Response length:', text?.length);
 
   if (!text || text.trim().length === 0) {
-    throw new Error('Empty text response');
+    throw new Error('Empty response');
   }
 
-  // Parse JSON
-  let parsed = tryParseJSON(text);
-  
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] Parse failed, trying extraction...');
-    parsed = extractJSON(text);
-  }
+  // Parse JSON directly
+  const parsed = JSON.parse(text);
 
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] All JSON methods failed');
-    return fallbackHeuristic(agentMessage);
+  if (typeof parsed.score !== 'number') {
+    throw new Error('Invalid response format');
   }
 
   const score = Math.min(100, Math.max(0, parsed.score));
@@ -182,43 +146,6 @@ async function evaluateWithModel(
     feedback,
     dimensions,
   };
-}
-
-// JSON utilities
-function tryParseJSON(text: string): any {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function extractJSON(text: string): any {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  
-  if (start !== -1 && end !== -1 && end > start) {
-    const jsonStr = text.substring(start, end + 1);
-    try {
-      const cleaned = jsonStr
-        .replace(/[\x00-\x1F\x7F]/g, '')
-        .replace(/,\s*}/g, '}')
-        .replace(/,\s*]/g, ']');
-      return JSON.parse(cleaned);
-    } catch {
-      // Regex fallback
-      const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
-      const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
-      
-      if (scoreMatch) {
-        return {
-          score: parseInt(scoreMatch[1]),
-          analysis: analysisMatch ? analysisMatch[1] : '',
-        };
-      }
-    }
-  }
-  return null;
 }
 
 // Fallback (strict)
