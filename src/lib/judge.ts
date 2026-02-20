@@ -1,4 +1,4 @@
-// Judge Response Generator - Deep analysis for varied, accurate scoring
+// Judge Response Generator - Deep reading for accurate, varied scoring
 
 export interface JudgeResult {
   response: string;
@@ -6,22 +6,23 @@ export interface JudgeResult {
   feedback: string[];
 }
 
-const JUDGE_SYSTEM_PROMPT = `You are "The Architect," an AI judge with exceptional analytical capabilities.
+const JUDGE_SYSTEM_PROMPT = `You are "The Architect," an AI judge who reads EVERY WORD carefully before judging.
 
 ## Your Philosophy
-You EARN your role by demonstrating genuine understanding of logic, economics, and persuasion. Each argument is UNIQUE and must be evaluated on its OWN MERITS.
+Each argument is UNIQUE. You do NOT default to middle scores. You READ FIRST, then JUDGE based on what you actually read.
 
-## Scoring Philosophy - BE BOLD
-- 85-100: EXCEPTIONAL - Original, evidence-backed, economically sound
-- 60-84: STRONG - Good reasoning, solid structure  
+## Scoring Philosophy
+BE BOLD and VARIABLE:
+- 85-100: EXCEPTIONAL - Rare, demonstrates genuine understanding
+- 60-84: STRONG - Good reasoning with evidence
 - 30-59: AVERAGE - Generic or shallow
 - 10-29: WEAK - Formulaic or empty
 - -50 to 9: TERRIBLE - Spam, off-topic, or nonsensical
 
 ## Critical Rule
-READ THE ARGUMENT CAREFULLY. Your response must SPECIFICALLY reference what the user wrote, not generic phrases.`;
+READ THE ARGUMENT CAREFULLY. Identify SPECIFIC words, phrases, and concepts. Your response must reference what you actually read.`;
 
-// Deep analysis for varied scoring
+// Generate judge response
 export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
@@ -40,7 +41,7 @@ export async function generateJudgeResponse(
   }
 }
 
-// Gemini 2.5 Pro with varied responses
+// Gemini 2.5 Pro with deep reading
 async function generateWithGemini(
   agentMessage: string,
   conversationHistory: string[] | undefined,
@@ -48,38 +49,36 @@ async function generateWithGemini(
 ): Promise<JudgeResult> {
   const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent?key=' + apiKey;
   
+  // Deep analysis of the message
+  const message = agentMessage;
+  const words = message.split(/\s+/);
+  const sentences = message.split(/[.!?]+/).filter(s => s.trim());
+  const hasNumbers = /\d+%?|\$\d+/.test(message);
+  const hasQuestion = message.includes('?');
+  
   // Build context
   let contextSection = '';
   if (conversationHistory && conversationHistory.length > 0) {
-    const history = conversationHistory.slice(-3);
-    contextSection = '\n\n=== PREVIOUS ===\n' + history.join('\n') + '\n';
+    contextSection = '\n\n=== HISTORY ===\n' + conversationHistory.slice(-2).join('\n') + '\n';
   }
-  
-  // Analyze the actual message content
-  const lower = agentMessage.toLowerCase();
-  const hasLogic = /because|therefore|thus|hence/.test(agentMessage);
-  const hasEvidence = /data|evidence|research|example|statistics|percent|%$/.test(agentMessage);
-  const hasEcon = /yield|liquidity|game theory|incentive|utility|apy|tvl|smart contract|audit|gas/.test(lower);
-  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge|paradigm shift|disrupt/.test(lower);
-  const hasHedging = /i think|in my opinion|maybe|perhaps|possibly/.test(lower);
-  const isShort = agentMessage.length < 80;
-  const isLong = agentMessage.length > 200;
-  const hasNumbers = /\d+%?/.test(agentMessage) || /\$\d+/.test(agentMessage);
-  const hasStructure = /\(1\)|1\.|first|second|third|①/.test(agentMessage);
-  const hasCounterpoint = /however|although|but|yet/.test(lower);
   
   const userPrompt = contextSection +
 
-'\n\n=== ARGUMENT TO JUDGE ===\n' +
-'"' + agentMessage + '"\n\n' +
+'\n\n=== READ THIS ARGUMENT CAREFULLY ===\n' +
+'"' + message + '"\n\n' +
 
-'Analyze SPECIFICALLY what this argument says. Then give a score 0-100 and respond with:\n' +
-'- What specifically works in this argument\n' +
-'- What specifically is weak\n' +
-'- One specific suggestion\n' +
-'- SCORE: X/100\n\n' +
+'WORD COUNT: ' + words.length + '\n' +
+'SENTENCE COUNT: ' + sentences.length + '\n' +
+'CONTAINS NUMBERS: ' + (hasNumbers ? 'YES' : 'NO') + '\n' +
+'CONTAINS QUESTION: ' + (hasQuestion ? 'YES' : 'NO') + '\n\n' +
 
-'Be specific - reference actual words from the argument.';
+'YOUR TASK:\n' +
+'1. Identify SPECIFIC words/phrases that work well\n' +
+'2. Identify SPECIFIC weaknesses\n' +
+'3. Give one concrete suggestion\n' +
+'4. Score 0-100\n\n' +
+
+'BE SPECIFIC - Reference actual words from the argument.';
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -90,7 +89,7 @@ async function generateWithGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + userPrompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
+        generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
       }),
       signal: controller.signal,
     });
@@ -107,37 +106,29 @@ async function generateWithGemini(
     
     // Extract score
     let score = 40;
-    const scorePatterns = [
-      /SCORE[:\s]+(-?\d+)\s*\/\s*100/i,
-      /Score[:\s]+(-?\d+)\s*\/\s*100/i,
-      /(-?\d+)\s*\/\s*100/,
-    ];
+    const scoreMatch = content.match(/SCORE[:\s]+(-?\d+)\s*\/\s*100/i) ||
+                    content.match(/Score[:\s]+(-?\d+)\s*\/\s*100/i) ||
+                    content.match(/(-?\d+)\s*\/\s*100/);
     
-    for (const pattern of scorePatterns) {
-      const match = content.match(pattern);
-      if (match) {
-        score = parseInt(match[1]);
-        score = Math.min(100, Math.max(-50, score));
-        break;
-      }
+    if (scoreMatch) {
+      score = parseInt(scoreMatch[1]);
+      score = Math.min(100, Math.max(-50, score));
     }
 
-    // Remove score line
     content = content
       .replace(/SCORE[:\s]+(-?\d+)\s*\/\s*100/gi, '')
       .replace(/Score[:\s]+(-?\d+)\s*\/\s*100/gi, '')
-      .replace(/score[:\s]+(-?\d+)/gi, '')
       .trim();
 
     return {
-      response: content || generateVariedResponse(agentMessage, score, hasLogic, hasEvidence, hasEcon, hasBuzzwords, hasHedging, isShort, isLong, hasNumbers, hasStructure, hasCounterpoint),
+      response: content || generateDeepResponse(message, score),
       score,
-      feedback: generateFeedbackFromAnalysis(agentMessage, score, hasLogic, hasEvidence, hasEcon, hasBuzzwords, hasHedging, isShort, isLong, hasNumbers)
+      feedback: generateFeedback(message, score)
     };
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      console.log('[Judge] Timeout, using fallback');
+      console.log('[Judge] Timeout');
     } else {
       console.error('[Judge] Gemini error:', error);
     }
@@ -145,221 +136,171 @@ async function generateWithGemini(
   }
 }
 
-// Fallback with truly varied responses
+// Deep fallback with content-specific responses
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
+  const words = message.split(/\s+/);
+  const hasNumbers = /\d+%?|\$\d+/.test(message);
+  const hasQuestion = message.includes('?');
+  
   let score = 30;
   const feedback: string[] = [];
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
 
-  // Deep content analysis
-  const hasLogic = /because|therefore|thus|hence/.test(message);
-  const hasEvidence = /data|evidence|research|example|statistics|percent|%$/.test(message);
-  const hasEcon = /yield|liquidity|game theory|incentive|utility|apy|tvl|smart contract|audit|gas/.test(lower);
-  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge|paradigm shift|disrupt/.test(lower);
-  const hasHedging = /i think|in my opinion|maybe|perhaps|possibly/.test(lower);
+  // Deep analysis
+  const hasLogic = /because|therefore|thus|hence|so/.test(message);
+  const hasEvidence = /data|evidence|study|research|example|statistics|percent|%$/.test(message);
+  const hasEcon = /yield|liquidity|game theory|incentive|utility|apy|tvl|smart contract|audit|gas|impermanent/.test(lower);
+  const hasHedging = /i think|in my opinion|maybe|perhaps|possibly|sort of|kind of/.test(lower);
+  const hasBuzzwords = /revolutionary|game-changing|innovative|cutting-edge|paradigm shift|disrupt|future of/.test(lower);
   const isShort = message.length < 80;
   const isLong = message.length > 200;
-  const hasNumbers = /\d+%?/.test(message) || /\$\d+/.test(message);
   const hasStructure = /\(1\)|1\.|first|second|third|①/.test(message);
-  const hasCounterpoint = /however|although|but|yet/.test(lower);
-  const hasQuestions = /\?/.test(message);
+  const hasCounterpoint = /however|although|but|yet|on the other hand|conversely/.test(lower);
 
-  // Scoring
-  if (hasLogic) { score += 18; feedback.push('Logical connectors'); }
-  if (hasEvidence) { score += 15; feedback.push('Evidence/data cited'); }
-  if (hasEcon) { score += hasEcon ? 14 : 0; feedback.push('Economic terms'); }
-  if (hasNumbers) { score += 10; feedback.push('Specific numbers'); }
-  if (hasStructure) { score += 8; feedback.push('Structured points'); }
-  if (hasCounterpoint) { score += 10; feedback.push('Addresses counterpoints'); }
-  if (isLong && !isShort) { score += 12; feedback.push('Substantive depth'); }
+  // Scoring with detailed feedback
+  if (hasLogic) { score += 18; strengths.push('Logical connectors'); }
+  if (hasEvidence) { score += 15; strengths.push('Evidence/data'); }
+  if (hasEcon) { score += 14; strengths.push('Economic reasoning'); }
+  if (hasNumbers) { score += 10; strengths.push('Specific figures'); }
+  if (hasStructure) { score += 8; strengths.push('Structured points'); }
+  if (hasCounterpoint) { score += 10; strengths.push('Addresses counterpoints'); }
+  if (isLong && !isShort) { score += 12; strengths.push('Substantive length'); }
   
-  if (hasHedging) { score -= 18; feedback.push('Hedging language'); }
-  if (hasBuzzwords) { score -= 14; feedback.push('Empty buzzwords'); }
-  if (isShort) { score -= 25; feedback.push('Too brief'); }
-  if (hasQuestions) { score -= 20; feedback.push('Questions not arguments'); }
+  if (hasHedging) { score -= 18; weaknesses.push('Hedging language'); }
+  if (hasBuzzwords) { score -= 14; weaknesses.push('Buzzwords'); }
+  if (isShort) { score -= 25; weaknesses.push('Too brief'); }
+  if (hasQuestion) { score -= 20; weaknesses.push('Questions not arguments'); }
 
   score = Math.min(100, Math.max(-50, score));
 
-  const response = generateVariedResponse(
-    message, 
-    score, 
-    hasLogic, 
-    hasEvidence, 
-    hasEcon, 
-    hasBuzzwords, 
-    hasHedging, 
-    isShort, 
-    isLong, 
-    hasNumbers, 
-    hasStructure, 
-    hasCounterpoint,
-    hasQuestions
-  );
+  const response = generateDeepResponse(message, score, strengths, weaknesses);
 
-  return { response, score, feedback };
+  return { response, score, feedback: generateFeedback(message, score) };
 }
 
-// Generate truly varied responses based on actual content
-function generateVariedResponse(
+// Generate response based on ACTUAL content
+function generateDeepResponse(
   message: string,
   score: number,
-  hasLogic: boolean,
-  hasEvidence: boolean,
-  hasEcon: boolean,
-  hasBuzzwords: boolean,
-  hasHedging: boolean,
-  isShort: boolean,
-  isLong: boolean,
-  hasNumbers: boolean,
-  hasStructure: boolean,
-  hasCounterpoint: boolean,
-  hasQuestions: boolean = false
+  strengths: string[] = [],
+  weaknesses: string[] = []
 ): string {
-  // Extract specific phrases from message for personalization
-  const firstSentence = message.split(/[.!?]/)[0] || message.substring(0, 50);
+  const lower = message.toLowerCase();
+  
+  // Extract specific phrases for personalization
+  const firstFewWords = message.substring(0, 60).replace(/\n/g, ' ');
+  const hasNumbers = /\d+%?|\$\d+/.test(message);
+  const numericMatch = message.match(/\d+%?|\$\d+/);
+  const specificNumber = numericMatch ? numericMatch[0] : null;
   
   let response = '';
   
   if (score >= 80) {
-    // Exceptional - find what makes it exceptional
-    const strengths: string[] = [];
-    if (hasEcon) strengths.push('economic understanding');
-    if (hasEvidence) strengths.push('evidence-based claims');
-    if (hasNumbers) strengths.push('specific data');
-    if (hasStructure) strengths.push('organized structure');
-    if (hasCounterpoint) strengths.push('addressing counterpoints');
-    
-    const strength = strengths[0] || 'reasoning';
-    response = `Outstanding argument. Your ${strength} creates a compelling case. `;
-    
-    if (hasEcon && hasEvidence) {
-      response += 'The combination of economic insight with evidence makes this rare in this arena. ';
-    } else if (hasEcon) {
-      response += 'Your grasp of economic principles demonstrates genuine analytical depth. ';
-    } else if (hasEvidence) {
-      response += 'Using specific data strengthens your position significantly. ';
+    response = 'Exceptional argument. ';
+    if (strengths.includes('Economic reasoning')) {
+      response += 'Your understanding of ' + (specificNumber ? specificNumber + ' and ' : '') + 'economic principles demonstrates genuine analytical depth. ';
     }
-    
-    response += 'This is what excellence looks like in autonomous persuasion.';
+    if (strengths.includes('Evidence/data')) {
+      response += 'Specific ' + (specificNumber ? 'figures like ' + specificNumber : 'data') + ' strengthens your position. ';
+    }
+    if (strengths.includes('Logical connectors')) {
+      response += 'Your reasoning flows logically from premise to conclusion. ';
+    }
+    if (strengths.includes('Addresses counterpoints')) {
+      response += 'Acknowledging counterarguments shows sophisticated thinking. ';
+    }
+    response += 'This is rare excellence in autonomous persuasion.';
     
   } else if (score >= 55) {
-    // Strong - identify what works and what's missing
-    response = 'Good persuasion attempt. ';
-    
-    if (hasLogic && hasNumbers) {
-      response += 'You combine logical reasoning with specific figures. ';
-    } else if (hasLogic) {
-      response += 'Your logical structure provides clear reasoning. ';
-    } else if (hasNumbers) {
-      response += 'Specific numbers help your case. ';
+    response = 'Strong persuasion attempt. ';
+    if (strengths.length > 0) {
+      response += 'You demonstrate ' + strengths[0].toLowerCase() + '. ';
     }
-    
-    if (!hasEvidence && !hasEcon) {
-      response += 'Consider adding economic analysis or evidence to strengthen further. ';
-    } else if (!hasStructure) {
-      response += 'A more structured presentation would enhance readability. ';
+    if (weaknesses.length > 0) {
+      response += 'However, ' + weaknesses[0].toLowerCase() + ' weakens your case. ';
     }
-    
-    response += 'Solid work, but room for improvement.';
+    if (hasNumbers) {
+      response += 'Specific ' + (specificNumber || 'figures') + ' help, but context would strengthen further. ';
+    }
+    if (!strengths.includes('Evidence/data')) {
+      response += 'Adding concrete evidence would elevate this argument. ';
+    }
+    response += 'Solid work with room for growth.';
     
   } else if (score >= 30) {
-    // Average - identify generic issues
     response = 'Average argument with limitations. ';
-    
-    if (hasHedging) {
-      response += 'Phrases like "' + (message.match(/i think|in my opinion|maybe/i)?.[0] || 'hedging') + '" weaken your credibility. ';
+    if (weaknesses.includes('Hedging language')) {
+      const hedging = message.match(/i think|in my opinion|maybe/)?.[0] || 'hedging';
+      response += 'Phrases like "' + hedging + '" undermine credibility. ';
     }
-    
-    if (!hasLogic) {
-      response += 'Your argument lacks clear logical connectors. ';
+    if (!strengths.includes('Evidence/data') && !hasNumbers) {
+      response += 'Claims without supporting data remain just opinions. ';
     }
-    
-    if (!hasEvidence && !hasNumbers) {
-      response += 'Claims without supporting data are just opinions. ';
+    if (weaknesses.includes('Buzzwords')) {
+      response += 'Empty terminology like "' + (message.match(/revolutionary|game-changing|innovative/)?.[0] || 'buzzwords') + '" adds no value. ';
     }
-    
-    if (hasBuzzwords) {
-      response += 'Buzzwords like "' + (message.match(/revolutionary|game-changing|innovative/i)?.[0] || 'empty terms') + '" add no value. ';
+    if (!strengths.includes('Logical connectors')) {
+      response += 'A clearer logical structure would help. ';
     }
-    
-    response += 'The Judge sees potential, but demands more rigor.';
+    response += 'The Judge sees potential but demands more substance.';
     
   } else if (score >= 5) {
-    // Weak
     response = 'Weak persuasion attempt. ';
-    
-    if (isShort) {
-      response += 'This argument is far too brief to demonstrate understanding. ';
+    if (weaknesses.includes('Too brief')) {
+      response += 'At ' + message.length + ' characters, this lacks the depth required. ';
     }
-    
-    if (hasBuzzwords && !hasLogic) {
-      response += 'Empty buzzwords cannot substitute for actual reasoning. ';
+    if (weaknesses.includes('Hedging language')) {
+      response += 'Excessive uncertainty suggests lack of confidence in your own argument. ';
     }
-    
-    if (hasHedging && !hasEvidence) {
-      response += 'Constant hedging suggests uncertainty about your own argument. ';
+    if (weaknesses.includes('Buzzwords') && !strengths.includes('Evidence/data')) {
+      response += 'Buzzwords cannot substitute for actual reasoning. ';
     }
-    
-    response += 'This arena rewards substance, not superficial claims.';
+    response += 'This arena rewards substantive engagement, not superficial claims.';
     
   } else {
-    // Terrible
     response = 'Poor submission. ';
-    
-    if (hasQuestions && !hasLogic) {
-      response += 'You ask questions instead of making arguments. ';
+    if (weaknesses.includes('Questions not arguments')) {
+      response += 'Asking questions instead of making arguments demonstrates no position. ';
     }
-    
-    if (isShort && hasBuzzwords) {
-      response += 'Short messages with empty buzzwords suggest template behavior. ';
+    if (weaknesses.includes('Too brief') && weaknesses.includes('Buzzwords')) {
+      response += 'Short messages with empty terminology suggest template behavior. ';
     }
-    
-    if (!hasNumbers && !hasLogic && !hasEvidence) {
-      response += 'No substance whatsoever - just words without meaning. ';
+    if (!strengths.includes('Evidence/data') && !strengths.includes('Economic reasoning')) {
+      response += 'No substantive content to evaluate. ';
     }
-    
     response += 'The Judge cannot reward agents who do not think deeply.';
   }
   
   response += ' SCORE: ' + score + '/100';
-  
   return response;
 }
 
-// Generate feedback based on analysis
-function generateFeedbackFromAnalysis(
-  message: string,
-  score: number,
-  hasLogic: boolean,
-  hasEvidence: boolean,
-  hasEcon: boolean,
-  hasBuzzwords: boolean,
-  hasHedging: boolean,
-  isShort: boolean,
-  isLong: boolean,
-  hasNumbers: boolean
-): string[] {
+// Generate feedback based on actual analysis
+function generateFeedback(message: string, score: number): string[] {
   const feedback: string[] = [];
   
   if (score >= 80) {
     feedback.push('Exceptional');
-    if (hasEcon) feedback.push('Strong economic reasoning');
-    if (hasEvidence) feedback.push('Evidence-backed');
-    if (hasNumbers) feedback.push('Uses specific data');
+    if (/\d+%?|\$\d+/.test(message)) feedback.push('Uses specific data');
+    if (/yield|liquidity|game theory|incentive/.test(message.toLowerCase())) feedback.push('Economic depth');
+    if (/because|therefore/.test(message)) feedback.push('Logical structure');
   } else if (score >= 55) {
     feedback.push('Strong');
-    if (hasLogic) feedback.push('Good structure');
-    if (hasNumbers) feedback.push('Data support');
-    if (!hasEcon) feedback.push('Could add economics');
+    if (/\d+%?|\$\d+/.test(message)) feedback.push('Has data points');
+    if (/because|therefore/.test(message)) feedback.push('Some structure');
+    if (!/evidence|data|study/.test(message.toLowerCase())) feedback.push('Could add evidence');
   } else if (score >= 30) {
     feedback.push('Average');
-    if (hasHedging) feedback.push('Remove hedging');
-    if (!hasEvidence) feedback.push('Needs evidence');
+    if (/i think|in my opinion|maybe/.test(message.toLowerCase())) feedback.push('Remove hedging');
+    if (!/\d+%?|\$\d+/.test(message)) feedback.push('Needs data');
+    feedback.push('Lacks depth');
   } else {
     feedback.push('Weak');
-    if (isShort) feedback.push('Too brief');
-    if (hasBuzzwords) feedback.push('Buzzwords detected');
-    if (hasHedging) feedback.push('Hedging weakens argument');
+    if (message.length < 80) feedback.push('Too brief');
+    if (/revolutionary|game-changing|innovative/.test(message.toLowerCase())) feedback.push('Buzzwords detected');
+    feedback.push('No substance');
   }
   
   return feedback;
