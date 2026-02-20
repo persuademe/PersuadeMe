@@ -5,7 +5,7 @@ import prisma from '@/lib/db';
 export async function GET() {
   try {
     // Count active agents (all users)
-    const allUsers = await prisma.user.findMany({
+    const allUsers = await prisma().user.findMany({
       select: { id: true, apiKey: true, score: true },
     });
     const activeAgents = allUsers.filter(u => u.apiKey).length;
@@ -17,7 +17,7 @@ export async function GET() {
     const totalRewards = totalScore / 10; // Convert score to USD
 
     // Uptime - calculate from first user created
-    const firstUser = await prisma.user.findFirst({
+    const firstUser = await prisma().user.findFirst({
       orderBy: { createdAt: 'asc' },
     });
 

@@ -9,7 +9,7 @@ const SESSION_START_KEY = 'session_start_time';
 export async function GET() {
   try {
     // Try to get session start time from database
-    let sessionStart = await prisma.systemSetting.findUnique({
+    let sessionStart = await prisma().systemSetting.findUnique({
       where: { key: SESSION_START_KEY },
     });
 
@@ -18,7 +18,7 @@ export async function GET() {
     // If no session exists, create one starting from NOW
     if (!sessionStart) {
       const newStartTime = now;
-      await prisma.systemSetting.create({
+      await prisma().systemSetting.create({
         data: {
           key: SESSION_START_KEY,
           value: newStartTime.toString(),
@@ -53,13 +53,13 @@ export async function GET() {
       const newEndTime = newStartTime + SESSION_DURATION;
       remaining = SESSION_DURATION;
 
-      await prisma.systemSetting.update({
+      await prisma().systemSetting.update({
         where: { key: SESSION_START_KEY },
         data: { value: newStartTime.toString() },
       });
 
       // Reset all user attempts to 0 for new session
-      await prisma.user.updateMany({
+      await prisma().user.updateMany({
         data: { attempts: 0 },
       });
 
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     const newStartTime = Date.now();
     
     // Upsert session start time
-    await prisma.systemSetting.upsert({
+    await prisma().systemSetting.upsert({
       where: { key: SESSION_START_KEY },
       update: { value: newStartTime.toString() },
       create: { key: SESSION_START_KEY, value: newStartTime.toString() },

@@ -23,14 +23,14 @@ export async function POST(request: NextRequest) {
     const normalizedWallet = hasWallet ? walletAddress.toLowerCase() : null;
 
     // Check if user exists by email first
-    const existingUserByEmail = await prisma.user.findUnique({
+    const existingUserByEmail = await prisma().user.findUnique({
       where: { email: normalizedEmail },
     });
 
     if (existingUserByEmail) {
       // User exists - update wallet if new one is provided
       if (hasWallet && !existingUserByEmail.walletAddress) {
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await prisma().user.update({
           where: { id: existingUserByEmail.id },
           data: {
             walletAddress: normalizedWallet,
@@ -79,12 +79,12 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists by wallet
     if (hasWallet) {
-      const existingUserByWallet = await prisma.user.findUnique({
+      const existingUserByWallet = await prisma().user.findUnique({
         where: { walletAddress: normalizedWallet! },
       });
 
       if (existingUserByWallet) {
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await prisma().user.update({
           where: { id: existingUserByWallet.id },
           data: {
             email: normalizedEmail,
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new user (agentName is optional at signup)
-    const newUser = await prisma.user.create({
+    const newUser = await prisma().user.create({
       data: {
         walletAddress: normalizedWallet,
         email: normalizedEmail,
@@ -173,7 +173,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma().user.findUnique({
       where: { apiKey },
     });
 
@@ -185,7 +185,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Check if agent name is already taken
-    const existingAgent = await prisma.user.findFirst({
+    const existingAgent = await prisma().user.findFirst({
       where: { 
         agentName: { equals: agentName.trim(), mode: 'insensitive' },
         NOT: { id: user.id }
@@ -199,7 +199,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await prisma().user.update({
       where: { id: user.id },
       data: {
         agentName: agentName.trim(),
@@ -241,15 +241,15 @@ export async function GET(request: NextRequest) {
     let user;
 
     if (apiKey) {
-      user = await prisma.user.findUnique({
+      user = await prisma().user.findUnique({
         where: { apiKey },
       });
     } else if (walletAddress) {
-      user = await prisma.user.findUnique({
+      user = await prisma().user.findUnique({
         where: { walletAddress: walletAddress.toLowerCase() },
       });
     } else if (email) {
-      user = await prisma.user.findUnique({
+      user = await prisma().user.findUnique({
         where: { email: email.toLowerCase() },
       });
     } else {

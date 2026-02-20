@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(request.nextUrl.searchParams.get("limit") || "10");
 
     // Get top agents by score
-    const topAgents = await prisma.user.findMany({
+    const topAgents = await prisma().user.findMany({
       where: {
         score: { gt: 0 },
         agentName: { not: null },

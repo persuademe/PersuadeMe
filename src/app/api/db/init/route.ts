@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 export async function GET() {
   try {
     // Use raw query to avoid pgbouncer prepared statement issues
-    const result = await prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "User"`;
+    const result = await prisma().$queryRaw`SELECT COUNT(*)::int as count FROM "User"`;
     
     let userCount = 0;
     if (Array.isArray(result) && result[0] && typeof result[0] === 'object') {

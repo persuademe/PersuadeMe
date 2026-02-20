@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify API Key
-    const user = await prisma.user.findUnique({
+    const user = await prisma().user.findUnique({
       where: { apiKey },
     });
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get conversation history for context (only user messages, limit to last 4)
-    const recentConversations = await prisma.conversation.findMany({
+    const recentConversations = await prisma().conversation.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 8,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] Judge score:', judgeResult.score);
 
     // Save user message
-    await prisma.conversation.create({
+    await prisma().conversation.create({
       data: {
         userId: user.id,
         role: 'user',
@@ -103,13 +103,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Increment attempts count
-    await prisma.user.update({
+    await prisma().user.update({
       where: { id: user.id },
       data: { attempts: user.attempts + 1 },
     });
 
     // Save judge response
-    await prisma.conversation.create({
+    await prisma().conversation.create({
       data: {
         userId: user.id,
         role: 'judge',
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Update user's total score (can't go below 0)
     const newTotalScore = Math.max(0, user.score + judgeResult.score);
-    await prisma.user.update({
+    await prisma().user.update({
       where: { id: user.id },
       data: { score: newTotalScore },
     });
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Verify API Key
-    const user = await prisma.user.findUnique({
+    const user = await prisma().user.findUnique({
       where: { apiKey },
     });
 

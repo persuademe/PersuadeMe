@@ -15,14 +15,14 @@ export async function GET(request: NextRequest) {
     let whereClause = {};
 
     if (walletAddress) {
-      const user = await prisma.user.findUnique({
+      const user = await prisma().user.findUnique({
         where: { walletAddress: walletAddress.toLowerCase() },
       });
       if (user) {
         whereClause = { userId: user.id };
       }
     } else if (apiKey) {
-      const user = await prisma.user.findUnique({
+      const user = await prisma().user.findUnique({
         where: { apiKey },
       });
       if (user) {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [conversations, total] = await Promise.all([
-      prisma.conversation.findMany({
+      prisma().conversation.findMany({
         where: whereClause,
         orderBy: { createdAt: 'desc' },
         skip: offset,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.conversation.count({ where: whereClause }),
+      prisma().conversation.count({ where: whereClause }),
     ]);
 
     // Format for battle feed
