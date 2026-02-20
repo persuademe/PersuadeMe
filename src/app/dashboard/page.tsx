@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
@@ -12,10 +12,7 @@ import {
   Zap,
   Wallet,
   DollarSign,
-  Activity,
-  ChevronRight,
   Loader2,
-  RefreshCw,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
@@ -44,111 +41,86 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
   const [messages, setMessages] = useState<BattleMessage[]>([]);
-  const [sessionTime, setSessionTime] = useState<{ hours: number; minutes: number; seconds: number }>({ hours: 0, minutes: 0, seconds: 0 });
+  const [sessionTime, setSessionTime] = useState("06:00:00");
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
-  const sessionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const feedIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch unified session time from API
+  // Fetch session time
   useEffect(() => {
     async function fetchSessionTime() {
       try {
         const response = await fetch("/api/session");
         const data = await response.json();
-        if (data.success) {
-          setSessionTime({
-            hours: data.remaining.hours,
-            minutes: data.remaining.minutes,
-            seconds: data.remaining.seconds,
-          });
+        if (data.success && data.remaining) {
+          const { hours, minutes, seconds } = data.remaining;
+          setSessionTime(
+            `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+          );
         }
       } catch (error) {
         console.error("Failed to fetch session time:", error);
       }
     }
 
-    // Initial fetch
-    fetchSessionTime();
-    
-    // Poll session time every second
-    sessionIntervalRef.current = setInterval(fetchSessionTime, 1000);
-    
-    return () => {
-      if (sessionIntervalRef.current) {
-        clearInterval(sessionIntervalRef.current);
-      }
-    };
-  }, []);
+    if (mounted) {
+      fetchSessionTime();
+      const interval = setInterval(fetchSessionTime, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [mounted]);
 
-  // Format timestamp from ISO
-  const formatTimestamp = (isoString: string): string => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  // Fetch battle feed
+  useEffect(() => {
+    async function fetchBattleFeed() {
+      if (!authUser?.apiKey) return;
 
-  // Fetch battle feed from database
-  const fetchBattleFeed = useCallback(async () => {
-    if (!authUser?.apiKey) return;
+      try {
+        const response = await fetch(
+          `/api/conversations?apiKey=${authUser.apiKey}&limit=50`
+        );
+        const data = await response.json();
 
-    try {
-      const response = await fetch(
-        `/api/conversations?apiKey=${authUser.apiKey}&limit=50`
-      );
-      const data = await response.json();
+        if (data.success && data.battleFeed) {
+          const formatTimestamp = (isoString: string): string => {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          };
 
-      if (data.success && data.battleFeed) {
-        const newMessages: BattleMessage[] = data.battleFeed.map((msg: any) => ({
-          id: msg.id,
-          timestamp: formatTimestamp(msg.timestamp),
-          speaker: msg.speaker,
-          agentName: msg.agentName,
-          content: msg.content,
-          score: msg.score,
-        }));
+          const newMessages: BattleMessage[] = data.battleFeed.map((msg: any) => ({
+            id: msg.id,
+            timestamp: formatTimestamp(msg.timestamp),
+            speaker: msg.speaker,
+            agentName: msg.agentName,
+            content: msg.content,
+            score: msg.score,
+          }));
 
-        // Only update if messages changed (compare by IDs)
-        const currentIds = messages.map(m => m.id).join(',');
-        const newIds = newMessages.map(m => m.id).join(',');
-        
-        if (currentIds !== newIds) {
           setMessages(newMessages);
         }
+      } catch (error) {
+        console.error("Failed to fetch battle feed:", error);
       }
-    } catch (error) {
-      console.error("Failed to fetch battle feed:", error);
+    }
+
+    if (authUser?.apiKey) {
+      fetchBattleFeed();
+      const interval = setInterval(fetchBattleFeed, 3000);
+      return () => clearInterval(interval);
     }
   }, [authUser]);
 
-  // Poll for new messages every 3 seconds
+  // Fetch leaderboard
   useEffect(() => {
-    if (!ready || !user || !authUser?.apiKey) return;
-
-    // Initial fetch
-    fetchBattleFeed();
-
-    // Poll every 3 seconds
-    feedIntervalRef.current = setInterval(fetchBattleFeed, 3000);
-    
-    return () => {
-      if (feedIntervalRef.current) {
-        clearInterval(feedIntervalRef.current);
-      }
-    };
-  }, [ready, user, authUser, fetchBattleFeed]);
-
-  // Fetch leaderboard data
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
+    async function fetchLeaderboard() {
       try {
         const response = await fetch("/api/leaderboard?limit=10");
         const data = await response.json();
         
         if (data.success && data.leaderboard) {
-          setActiveAgents(data.leaderboard.map((agent: any) => ({
+          setActiveAgents(data.leaderboard.map((agent: any, index: number) => ({
             id: agent.id,
             name: agent.name || "Anonymous",
             address: agent.address || "N/A",
@@ -161,7 +133,7 @@ export default function DashboardPage() {
       } finally {
         setIsLoading(false);
       }
-    };
+    }
 
     fetchLeaderboard();
   }, []);
@@ -176,19 +148,16 @@ export default function DashboardPage() {
     }
   }, [ready, user, router]);
 
-  // Update document title with timer
-  useEffect(() => {
-    if (mounted) {
-      const timeStr = `${sessionTime.hours.toString().padStart(2, "0")}:${sessionTime.minutes.toString().padStart(2, "0")}:${sessionTime.seconds.toString().padStart(2, "0")}`;
-      document.title = `${timeStr} - Persuade Me`;
-    }
-  }, [mounted, sessionTime]);
-
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   if (!mounted || !ready || !user) {
     return (
@@ -198,21 +167,11 @@ export default function DashboardPage() {
     );
   }
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
-  };
-
-  const handleRefresh = () => {
-    fetchBattleFeed();
-  };
-
   return (
     <div className="min-h-screen bg-obsidian flex flex-col">
       {/* Header */}
       <header className="border-b border-slate-800 bg-obsidianLighter/50 backdrop-blur-sm">
         <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-wrap items-center justify-between gap-3">
-          {/* Logo - Clickable to go to main page */}
           <div className="flex items-center gap-2 md:gap-3">
             <Link href="/">
               <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -224,7 +183,6 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Prize Pool */}
           <div className="flex items-center gap-2 md:gap-6">
             <div className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
               <DollarSign className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400" />
@@ -233,7 +191,6 @@ export default function DashboardPage() {
             <span className="hidden md:inline text-slate-500 text-sm font-mono">Prize Pool</span>
           </div>
 
-          {/* Wallet & Logout */}
           <div className="flex items-center gap-2 md:gap-3">
             <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-obsidianLighter border border-slate-700/50 rounded-lg">
               <Wallet className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400" />
@@ -253,39 +210,20 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Main Arena */}
-      <div className="flex-1 flex flex-col md:flex-row max-w-[1600px] mx-auto w-full">
-        {/* Battle Feed (70%) */}
-        <main className="flex-1 p-3 md:p-6 order-1 md:order-1">
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between mb-3 md:mb-4">
-              <div className="flex items-center gap-2 md:gap-3">
-                <Activity className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
-                <h2 className="text-sm md:text-lg font-semibold text-white">Battle Feed</h2>
-                <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs font-mono text-emerald-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                  LIVE
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRefresh}
-                  className="p-1.5 text-slate-400 hover:text-emerald-400 transition-colors"
-                  title="Refresh"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-                <div className="flex items-center gap-2 text-[10px] md:text-sm text-slate-400 font-mono">
-                  <span>{messages.length} msgs</span>
-                  <span className="hidden sm:inline text-slate-600">|</span>
-                  <span className="hidden sm:inline">{activeAgents.filter((a) => a.isActive).length} active</span>
-                </div>
-              </div>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col md:flex-row">
+        {/* Main Panel (70%) */}
+        <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6 order-1 md:order-1">
+          {/* Battle Terminal */}
+          <div className="h-[50vh] md:h-[calc(100vh-200px)] flex flex-col">
+            <div className="flex items-center gap-2 mb-3">
+              <Terminal className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Battle Terminal</h2>
             </div>
-
+            
             <div
               ref={terminalRef}
-              className="flex-1 h-[45vh] md:h-auto bg-obsidianLighter border border-slate-700/50 rounded-lg overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm"
+              className="flex-1 bg-obsidianLighter border border-slate-700/50 rounded-lg overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -338,7 +276,7 @@ export default function DashboardPage() {
               <span className="text-xs md:text-sm font-medium text-white">Session Timer</span>
             </div>
             <p className="text-xl md:text-3xl font-mono font-bold text-emerald-400">
-              {sessionTime.hours.toString().padStart(2, "0")}:{sessionTime.minutes.toString().padStart(2, "0")}:{sessionTime.seconds.toString().padStart(2, "0")}
+              {sessionTime}
             </p>
             <p className="text-[10px] md:text-xs text-slate-500 mt-1">Until next payout cycle</p>
           </div>
@@ -383,31 +321,26 @@ export default function DashboardPage() {
             </div>
             {user?.wallet?.address ? (
               <div className="space-y-2">
-                {/* Agent Name */}
                 {authUser?.agentName ? (
                   <p className="text-lg font-bold text-cyan-400">{authUser.agentName}</p>
                 ) : (
                   <p className="text-xs text-amber-400">Agent name not set</p>
                 )}
                 
-                {/* Wallet Address */}
                 <p className="text-[10px] md:text-xs text-slate-400 font-mono">
                   {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
                 </p>
                 
-                {/* Score */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Score</span>
                   <span className="text-xs md:text-sm font-bold text-emerald-400">{authUser?.score || 0}</span>
                 </div>
                 
-                {/* Attempts */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Attempts</span>
                   <span className="text-xs md:text-sm font-bold text-amber-400">{authUser?.attempts || 0}/10</span>
                 </div>
                 
-                {/* Verification */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] md:text-xs text-slate-500">Verification</span>
                   <span className="px-1.5 md:px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[10px] md:text-xs text-emerald-400 flex items-center gap-1">
