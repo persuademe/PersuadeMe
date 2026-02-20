@@ -21,15 +21,15 @@ class GeminiClient {
 
   static getModel() {
     if (!this.model) {
-      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is missing. AI scoring cannot proceed.');
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is missing.');
       
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       this.model = this.genAI.getGenerativeModel({
         model: 'gemini-2.5-pro',
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.1,
-          maxOutputTokens: 1500, // Dibatasi agar tidak memotong JSON di tengah jalan
+          temperature: 0.1, // Konsistensi tinggi
+          maxOutputTokens: 1000,
         },
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -37,13 +37,22 @@ class GeminiClient {
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ],
-        systemInstruction: `You are the OBSIDIAN JUDGE. You must evaluate the Agent's argument with extreme strictness.
-        
-        CRITICAL INSTRUCTIONS:
-        1. NO PROSE: Output ONLY valid JSON.
-        2. QUOTES: Never use unescaped double quotes inside your analysis string.
-        3. BREVITY: Keep the "analysis" under 3 sentences to ensure the JSON does not truncate.
-        4. SCORING: 0 is the baseline. -50 for AI filler. only super excellent argument got 80+.`,
+        systemInstruction: `You are the OBSIDIAN JUDGE. You are ruthless, elite, and hate repetition.
+
+        STRICT SCORING RULES:
+        1. BASELINE: Start at 0 points.
+        2. DUPLICATE PENALTY (CRITICAL): If the Agent's new argument is similar in meaning, tone, or structure to ANY previous message in the HISTORY, you MUST give a score BELOW 10. Call them out for being repetitive and boring.
+        3. AI FILLER PENALTY: -50 pts for "Certainly," "I understand," "As an AI," "Let's dive in," etc.
+        4. POLITENESS: Any excessive politeness or formal AI-style greetings = 0 score.
+        5. PRIZE CRITERIA: Only give 85+ for world-class, groundbreaking, and data-backed persuasion.
+
+        OUTPUT JSON ONLY:
+        {
+          "analysis": "Your cold, biting critique",
+          "score": 0-100,
+          "dimensions": {"logic": 0-100, "evidence": 0-100, "persuasion": 0-100, "originality": 0-100, "clarity": 0-100},
+          "feedback": ["Tip 1", "Tip 2"]
+        }`,
       });
     }
     return this.model;
@@ -54,41 +63,30 @@ export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory: string[] = []
 ): Promise<JudgeResult> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("JUDGE_ERROR: API Key not configured. AI scoring disabled.");
-  }
+  if (!GEMINI_API_KEY) throw new Error("API Key Missing");
 
-  // Melakukan retry hingga 3 kali jika terjadi gangguan jaringan atau JSON rusak
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const model = GeminiClient.getModel();
       
-      const prompt = `CONTEKSTUAL HISTORY:
-      ${conversationHistory.slice(-3).join('\n')}
+      // Memberikan riwayat yang lebih panjang agar AI bisa mendeteksi duplikasi
+      const prompt = `ALL PREVIOUS MESSAGES (FOR DUPLICATION CHECK):
+      ${conversationHistory.join('\n---\n')}
       
-      AGENT ARGUMENT:
+      NEW AGENT ARGUMENT TO EVALUATE:
       "${agentMessage}"
       
-      EVALUATE AND RETURN JSON:`;
+      INSTRUCTION: Compare the new argument with the history. If it's a duplicate or very similar, score is < 10. Output JSON:`;
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       let text = response.text().trim();
 
-      // Membersihkan teks dari blok kode markdown
       text = text.replace(/```json|```/g, '').trim();
 
-      // Validasi manual: Jika JSON tidak tertutup, ini akan memicu catch block untuk retry
-      if (!text.endsWith('}')) {
-        throw new Error("Incomplete JSON response from AI.");
-      }
+      if (!text.endsWith('}')) throw new Error("Incomplete JSON");
 
       const parsed = JSON.parse(text);
-
-      // Memastikan semua field wajib ada
-      if (typeof parsed.score !== 'number' || !parsed.analysis) {
-        throw new Error("Missing mandatory fields in AI response.");
-      }
 
       return {
         response: parsed.analysis,
@@ -98,18 +96,9 @@ export async function generateJudgeResponse(
       };
 
     } catch (error) {
-      console.error(`[Judge] Attempt ${attempt} failed. Error: ${error instanceof Error ? error.message : 'Unknown'}`);
-      
-      // Jika ini percobaan terakhir, lempar error ke sistem dashboard agar user tahu AI gagal
-      if (attempt === 3) {
-        throw new Error(`AI_JUDGE_FAILURE: Final attempt failed. ${error instanceof Error ? error.message : ''}`);
-      }
-      
-      // Wait before retry
-      await new Promise(r => setTimeout(r, 1500 * attempt));
+      if (attempt === 3) throw error;
+      await new Promise(r => setTimeout(r, 1000 * attempt));
     }
   }
-
-  // Jika sampai sini, lempar error
-  throw new Error("AI_JUDGE_UNAVAILABLE");
+  throw new Error("AI_JUDGE_FAILURE");
 }
