@@ -102,9 +102,10 @@ async function evaluateWithModel(
     throw new Error('No response');
   }
 
-  const text = result.response.text();
+  console.log('[Judge] Response type:', typeof result.response);
+  console.log('[Judge] Response keys:', Object.keys(result.response || {}));
 
-  console.log('[Judge] Raw response length:', text?.length);
+  const text = result.response.text();
   console.log('[Judge] Raw response:', text);
 
   if (!text || text.trim().length === 0) {
