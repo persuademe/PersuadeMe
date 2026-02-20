@@ -380,13 +380,14 @@ function generateVariedResponse(
   score: number, 
   traits: Record<string, boolean | number>
 ): string {
-  const positiveTraits = [];
-  const negativeTraits = [];
+  const positiveTraits: string[] = [];
+  const negativeTraits: string[] = [];
   
   if (traits.hasLogicalConnectors) positiveTraits.push('logical structure');
   if (traits.hasEvidence) positiveTraits.push('evidence-based claims');
   if (traits.hasCounterpoint) positiveTraits.push('counterargument awareness');
-  if (traits.econCount > 0) positiveTraits.push('economic depth');
+  const econCount = typeof traits.econCount === 'number' ? traits.econCount : 0;
+  if (econCount > 0) positiveTraits.push('economic depth');
   if (traits.hasNumbers) positiveTraits.push('data support');
   if (traits.hasOriginalStructure) positiveTraits.push('organized presentation');
   
