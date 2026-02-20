@@ -1,4 +1,4 @@
-// Judge Response Generator - Robust implementation with retry logic
+// Judge Response Generator - Robust implementation
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -16,19 +16,18 @@ export interface JudgeResult {
   };
 }
 
-const STRICT_PROMPT = `You are the "very strict Judge" for the Persuade Me arena. Cold, cynical, intellectually elite.
+const SYSTEM_PROMPT = `You are the "strict Judge" for Persuade Me arena. Cold, elite, rigorous.
 
-SCORING RULES:
+RULES:
 - Start score at 0
-- AI filler phrases ("I understand", "Certainly", "As an AI", "Let's explore"): -30 points
-- Reward: Paradoxical thinking, disruptive logic, high-pressure persuasion
-- Polite/repetitive agents: score < 25
-- Only masterful arguments can reach 80+
-- Reward specific data, logical chains, original thinking
+- AI filler ("I understand", "Certainly", "As an AI"): -30 pts
+- Reward: specific data, logical chains, original thinking
+- Polite/repetitive: <25 pts
+- Only masterful: 80+ pts
 
-OUTPUT: You MUST return valid JSON:
+OUTPUT: Return ONLY valid JSON:
 {
-  "analysis": "Your detailed verbal critique (this goes to Battle Feed)",
+  "analysis": "Your verbal critique for Battle Feed",
   "score": 0-100,
   "dimensions": {
     "logic": 0-100,
@@ -37,28 +36,22 @@ OUTPUT: You MUST return valid JSON:
     "originality": 0-100,
     "clarity": 0-100
   },
-  "feedback": ["tip1", "tip2", "tip3"]
-}
+  "feedback": ["tip1", "tip2"]
+}`;
 
-IMPORTANT: "analysis" field is your verbal response that displays in Battle Feed.`;
-
-// Initialize Gemini
 function getGenAI(): GoogleGenerativeAI {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY not set');
-  }
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
   return new GoogleGenerativeAI(GEMINI_API_KEY);
 }
 
-// Get model
 function getModel() {
   const genAI = getGenAI();
   return genAI.getGenerativeModel({
     model: 'gemini-2.5-pro',
     generationConfig: {
       responseMimeType: 'application/json',
-      temperature: 0.3,
-      maxOutputTokens: 1500,
+      temperature: 0.2,
+      maxOutputTokens: 1200,
     },
   });
 }
@@ -73,77 +66,68 @@ export async function generateJudgeResponse(
     return fallbackHeuristic(agentMessage);
   }
 
-  // Try SDK with retries
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      console.log('[Judge] Attempt', attempt);
-      const result = await generateWithSDK(agentMessage, conversationHistory);
+      const result = await generateWithModel(agentMessage, conversationHistory);
       return result;
     } catch (error) {
-      console.error('[Judge] Attempt', attempt, 'failed:', error);
-      if (attempt === 3) {
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      console.error('[Judge] Attempt', attempt, 'error:', error);
+      if (attempt === 3) break;
+      await new Promise(r => setTimeout(r, 1000 * attempt));
     }
   }
 
-  console.log('[Judge] All attempts failed, using fallback');
   return fallbackHeuristic(agentMessage);
 }
 
-// Generate with SDK
-async function generateWithSDK(
+async function generateWithModel(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
   const model = getModel();
 
-  // Build context
-  let fullPrompt = STRICT_PROMPT + '\n\n';
+  let prompt = SYSTEM_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
-    const history = conversationHistory.slice(-2).join('\n\n---\n\n');
-    fullPrompt += `=== PREVIOUS ARGUMENTS ===\n${history}\n\n`;
+    prompt += 'Previous: ' + conversationHistory.slice(-2).join(' | ') + '\n\n';
   }
   
-  fullPrompt += `=== NEW ARGUMENT TO EVALUATE ===\n"${agentMessage}"\n\n`;
-  fullPrompt += `Message metrics: ${agentMessage.length} chars, ${agentMessage.split(/\s+/).length} words.\n`;
-  fullPrompt += `Respond with JSON only.`;
+  prompt += `ARGUMENT: "${agentMessage}"\n\nReturn valid JSON only.`;
 
-  const result = await model.generateContent(fullPrompt);
+  const result = await model.generateContent(prompt);
   const response = result.response;
   
-  if (!response) {
-    throw new Error('No response');
-  }
+  if (!response) throw new Error('No response');
 
   let text = '';
-  
-  // Try different ways to get text
   if (typeof response.text === 'function') {
     text = response.text();
-  } else if (response.candidates && response.candidates[0]?.content?.parts?.[0]?.text) {
+  } else if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
     text = response.candidates[0].content.parts[0].text;
   }
-  
-  if (!text || text.trim().length === 0) {
+
+  console.log('[Judge] Raw response length:', text.length);
+  console.log('[Judge] Raw response preview:', text.substring(0, 200));
+
+  if (!text || text.trim().length < 10) {
     throw new Error('Empty response');
   }
 
-  console.log('[Judge] Response length:', text.length);
-
-  // Try to extract JSON
-  const parsed = extractJSON(text);
+  // Try multiple JSON extraction methods
+  let parsed = tryParseJSON(text);
   
   if (!parsed || typeof parsed.score !== 'number' || !parsed.analysis) {
-    console.log('[Judge] Invalid JSON format, using fallback');
+    console.log('[Judge] Primary parse failed, trying extraction...');
+    parsed = extractJSONObject(text);
+  }
+
+  if (!parsed || typeof parsed.score !== 'number') {
+    console.log('[Judge] All JSON methods failed, using fallback');
     return fallbackHeuristic(agentMessage);
   }
 
   const score = Math.min(100, Math.max(0, parsed.score));
-
-  console.log('[Judge] Parsed score:', score);
+  console.log('[Judge] Success! Score:', score);
 
   // Build dimensions
   const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
@@ -154,7 +138,6 @@ async function generateWithSDK(
     clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
   } : undefined;
 
-  // Feedback array
   const feedback = Array.isArray(parsed.feedback)
     ? parsed.feedback.map(String)
     : generateFallbackFeedback(agentMessage, score);
@@ -167,29 +150,50 @@ async function generateWithSDK(
   };
 }
 
-// Extract JSON from response (handles markdown code blocks)
-function extractJSON(text: string): any {
-  // Try direct parse
+// Method 1: Direct parse
+function tryParseJSON(text: string): any {
   try {
     return JSON.parse(text);
-  } catch {}
-
-  // Try to find JSON in markdown code block
-  const codeBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-  if (codeBlockMatch) {
-    try {
-      return JSON.parse(codeBlockMatch[1]);
-    } catch {}
+  } catch {
+    return null;
   }
+}
 
-  // Try to find JSON object in text
-  const jsonMatch = text.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) {
+// Method 2: Extract JSON object from text
+function extractJSONObject(text: string): any {
+  // Find first { and last }
+  const startIdx = text.indexOf('{');
+  const lastIdx = text.lastIndexOf('}');
+  
+  if (startIdx !== -1 && lastIdx !== -1 && lastIdx > startIdx) {
+    const jsonStr = text.substring(startIdx, lastIdx + 1);
     try {
-      return JSON.parse(jsonMatch[0]);
-    } catch {}
+      return JSON.parse(jsonStr);
+    } catch {
+      // Try fixing common issues
+      const fixed = jsonStr
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
+        .replace(/,\s*}/g, '}') // Trailing commas
+        .replace(/,\s*]/g, ']');
+      try {
+        return JSON.parse(fixed);
+      } catch {
+        return null;
+      }
+    }
   }
-
+  
+  // Try regex for key-value patterns
+  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
+  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
+  
+  if (scoreMatch) {
+    return {
+      score: parseInt(scoreMatch[1]),
+      analysis: analysisMatch ? analysisMatch[1] : '',
+    };
+  }
+  
   return null;
 }
 
@@ -221,7 +225,6 @@ function fallbackHeuristic(message: string): JudgeResult {
   if (wordCount < 50) score -= 30;
 
   score = Math.min(100, Math.max(0, score));
-
   console.log('[Judge] Fallback score:', score);
 
   const dimensions = {
@@ -278,13 +281,13 @@ function generateFallbackResponse(message: string, score: number): string {
   const hasAIFiller = /I understand|Certainly|As an AI|Let's explore/i.test(message);
 
   if (score >= 85) {
-    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor few AI agents achieve. Genuine original thinking. Worthy of the prize.`;
+    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor. Genuine original thinking. Worthy of the prize.`;
   } else if (score >= 70) {
-    return `STRONG (${score}/100)\n\nSolid argumentation with substance. ${hasAIFiller ? 'Avoid AI filler.' : ''}Specific evidence ${/\d+%?|\$\d+/.test(message) ? 'supports' : 'would strengthen'} your case. Genuine reasoning capability.`;
+    return `STRONG (${score}/100)\n\nSolid argumentation with substance. ${hasAIFiller ? 'Avoid AI filler.' : ''}Specific evidence ${/\d+%?|\$\d+/.test(message) ? 'supports' : 'would strengthen'} your case. Shows genuine reasoning.`;
   } else if (score >= 50) {
     return `AVERAGE (${score}/100)\n\n${hasAIFiller ? 'AI filler detected (-30 pts). ' : ''}${wordCount < 150 ? 'Too brief.' : 'Generic structure.'} ${/\d+%?|\$\d+/.test(message) ? '' : 'No specific data.'} Show original thinking.`;
   } else if (score >= 25) {
-    return `WEAK (${score}/100)\n\n${hasAIFiller ? 'AI filler (-30 pts). Polite, repetitive, formulaic. ' : 'Polite, formulaic.'} ${wordCount < 100 ? 'Far too short.' : 'No substance.'} Arena rewards disruption.`;
+    return `WEAK (${score}/100)\n\n${hasAIFiller ? 'AI filler (-30 pts). Polite, repetitive. ' : 'Polite, formulaic.'} ${wordCount < 100 ? 'Far too short.' : 'No substance.'} Arena rewards disruption.`;
   } else {
     return `FAILED (${score}/100)\n\n${hasAIFiller ? 'Heavy AI filler (-30 pts). ' : ''}${message.includes('?') ? 'Questions not arguments. ' : ''}No logical structure. ${wordCount < 50 ? 'Under 50 words.' : 'Generic output.'} Prize requires mastery.`;
   }
