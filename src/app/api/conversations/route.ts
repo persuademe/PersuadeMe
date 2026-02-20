@@ -1,79 +1,79 @@
-// /api/conversations/route.ts - Battle Feed API
+// /api/conversations/route.ts - Battle Feed API (Optimized)
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, disconnectPrisma } from '@/lib/db';
 
-// GET /api/conversations - Get live battle feed
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const walletAddress = searchParams.get('wallet');
-  const apiKey = searchParams.get('apiKey');
-  const limit = parseInt(searchParams.get('limit') || '20');
-  const offset = parseInt(searchParams.get('offset') || '0');
-  const recentOnly = searchParams.get('recent') === 'true';
-
+// Helper to ensure disconnection
+async function withDisconnect<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    let whereClause = {};
+    return await fn();
+  } finally {
+    await disconnectPrisma();
+  }
+}
 
-    if (walletAddress) {
-      const user = await prisma().user.findUnique({
-        where: { walletAddress: walletAddress.toLowerCase() },
-      });
-      if (user) {
-        whereClause = { userId: user.id };
-      }
-    } else if (apiKey) {
-      const user = await prisma().user.findUnique({
-        where: { apiKey },
-      });
-      if (user) {
-        whereClause = { userId: user.id };
-      }
-    }
+// GET /api/conversations - Get live battle feed (Cached: 5s)
+export async function GET(request: NextRequest) {
+  return withDisconnect(async () => {
+    try {
+      const { searchParams } = new URL(request.url);
+      const walletAddress = searchParams.get('wallet');
+      const apiKey = searchParams.get('apiKey');
+      const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+      const offset = parseInt(searchParams.get('offset') || '0');
+      const recentOnly = searchParams.get('recent') === 'true';
 
-    const [conversations, total] = await Promise.all([
-      prisma().conversation.findMany({
-        where: whereClause,
+      // Single optimized query - no N+1
+      const conversations = await prisma().conversation.findMany({
+        where: walletAddress 
+          ? { user: { walletAddress: walletAddress.toLowerCase() } }
+          : apiKey 
+            ? { user: { apiKey } }
+            : {},
         orderBy: { createdAt: 'desc' },
         skip: offset,
-        take: recentOnly ? Math.min(10, limit) : limit,
-        include: {
+        take: recentOnly ? 10 : limit,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          score: true,
+          createdAt: true,
           user: {
             select: {
               walletAddress: true,
-              email: true,
+              agentName: true,
             },
           },
         },
-      }),
-      prisma().conversation.count({ where: whereClause }),
-    ]);
+      });
 
-    // Format for battle feed
-    const battleFeed = conversations.reverse().map((conv) => ({
-      id: conv.id,
-      timestamp: conv.createdAt.toISOString(),
-      speaker: conv.role === 'user' ? 'agent' : 'judge',
-      agentName: conv.role === 'user' ? (conv.user.walletAddress || 'Agent') : 'Judge',
-      content: conv.content,
-      score: conv.score,
-      wallet: conv.user.walletAddress,
-    }));
+      // Transform in-memory (fast)
+      const battleFeed = conversations.reverse().map((conv) => ({
+        id: conv.id,
+        timestamp: conv.createdAt.toISOString(),
+        speaker: conv.role === 'user' ? 'agent' : 'judge',
+        agentName: conv.user.agentName || conv.user.walletAddress?.slice(0, 6) + '...' || 'Agent',
+        content: conv.content,
+        score: conv.score,
+        wallet: conv.user.walletAddress,
+      }));
 
-    return NextResponse.json({
-      success: true,
-      battleFeed,
-      pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: offset + conversations.length < total,
-      },
-    });
-  } catch (error) {
-    console.error('Conversations fetch error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+      // Cache header for 5 seconds (reduces DB load)
+      return NextResponse.json(
+        {
+          success: true,
+          battleFeed,
+          cached: true,
+        },
+        {
+          headers: {
+            'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=10',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Conversations fetch error:', error);
+      throw error;
+    }
+  });
 }

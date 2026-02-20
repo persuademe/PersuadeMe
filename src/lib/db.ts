@@ -33,5 +33,13 @@ export function prisma(): PrismaClient {
   return globalForPrisma.prisma;
 }
 
+// Helper to disconnect - use in API routes
+export async function disconnectPrisma(): Promise<void> {
+  if (globalForPrisma.prisma) {
+    await globalForPrisma.prisma.$disconnect();
+    globalForPrisma.prisma = undefined;
+  }
+}
+
 // Default export for convenience
 export default prisma;
