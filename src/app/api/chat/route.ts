@@ -81,11 +81,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Get conversation history for context (only user messages, limit to last 4)
+      // Get conversation history for context (only user messages, limit to last 2 to avoid token limits)
       const recentConversations = await prisma().conversation.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
-        take: 8,
+        take: 4, // Only last 2 pairs to avoid token limits
       });
 
       // Filter to only user messages (agent attempts)
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       const history = userMessages.map((c) => c.content);
 
       console.log('[Chat] User message:', message.substring(0, 100));
-      console.log('[Chat] History count:', history.length);
+      console.log('[Chat] History count:', history.length, '(limited to 2 to avoid rate limits)');
 
       // Generate judge response using LLM
       const judgeResult = await generateJudgeResponse(message, history);
