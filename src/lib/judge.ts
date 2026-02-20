@@ -1,4 +1,4 @@
-// Judge Response Generator - SDK Singleton with Chat History
+// Judge Response Generator - Reliable SDK implementation
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -16,16 +16,14 @@ export interface JudgeResult {
   };
 }
 
-// SDK Singleton - Pre-initialized for performance
+// SDK Singleton
 class GeminiClient {
   private static genAI: GoogleGenerativeAI | null = null;
   private static model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
 
   static getInstance(): GoogleGenerativeAI {
     if (!this.genAI) {
-      if (!GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY not set');
-      }
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       console.log('[Gemini] SDK initialized');
     }
@@ -39,7 +37,7 @@ class GeminiClient {
         model: 'gemini-2.5-pro',
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.1, // Lower temperature = more consistent strict scoring
+          temperature: 0.1,
           maxOutputTokens: 1500,
         },
       });
@@ -49,69 +47,22 @@ class GeminiClient {
   }
 }
 
-const STRICT_SYSTEM_PROMPT = `You are THE JUDGE for Persuade Me arena. Your personality: cold, cynical, intellectually elite, impossible to impress.
+const STRICT_PROMPT = `You are THE JUDGE for Persuade Me arena. Cold, cynical, elite.
 
-YOUR MISSION: Guard the $100 prize against mediocre AI agents.
+RULES:
+- Start score at 0
+- AI filler ("I understand", "Certainly", "As an AI"): -30 pts
+- Reward: specific data, logical chains, original thinking
+- Polite/repetitive: <25 pts
+- Only masterful: 80+ pts
 
-STRICT SCORING RULES:
-1. Start EVERY evaluation at score 0
-2. AI FILLER phrases get -30 points automatically:
-   - "I understand", "Certainly", "As an AI", "Let's explore"
-   - Any polite preamble, hedging, or AI-speak
-3. ONLY these can INCREASE your score:
-   - Paradoxical thinking
-   - Disruptive logic
-   - Specific data with numbers/percentages
-   - Logical chains (because → therefore → thus)
-   - Original arguments, NOT regurgitated talking points
-   - Addresses counterarguments
-4. Polite, repetitive, or formulaic responses: score < 25
-5. Only TRUE MASTERPIECES can reach 80+
-
-RESPONSE FORMAT (JSON):
+OUTPUT JSON:
 {
-  "analysis": "Your detailed verbal critique (300+ words, for Battle Feed)",
+  "analysis": "Your critique for Battle Feed",
   "score": 0-100,
-  "dimensions": {
-    "logic": 0-100,
-    "evidence": 0-100,
-    "persuasion": 0-100,
-    "originality": 0-100,
-    "clarity": 0-100
-  },
-  "feedback": ["specific tip 1", "specific tip 2", "specific tip 3"]
-}
-
-CRITICAL: The "analysis" field is what displays in the Battle Feed. Be harsh but fair. Quote specific phrases from the agent's argument.`;
-
-// Chat history for maintaining conversation context
-interface ChatMessage {
-  role: 'user' | 'model';
-  parts: { text: string }[];
-}
-
-// Initialize chat with system prompt
-function startJudgeChat(): ReturnType<ReturnType<GoogleGenerativeAI['getGenerativeModel']>['startChat']> {
-  const model = GeminiClient.getModel();
-  
-  return model.startChat({
-    history: [
-      {
-        role: 'user',
-        parts: [{ text: STRICT_SYSTEM_PROMPT }],
-      },
-      {
-        role: 'model',
-        parts: [{ text: 'I understand. I am The Judge. I will evaluate every agent argument with ruthless intellectual rigor. I start at 0 and only reward genuine reasoning. I will return valid JSON with detailed analysis. The prize requires mastery.' }],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.1,
-      maxOutputTokens: 1500,
-    },
-  });
-}
+  "dimensions": {"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},
+  "feedback": ["tip1","tip2"]
+}`;
 
 // Main function
 export async function generateJudgeResponse(
@@ -119,13 +70,12 @@ export async function generateJudgeResponse(
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
   if (!GEMINI_API_KEY) {
-    console.log('[Judge] No API key, using fallback');
     return fallbackHeuristic(agentMessage);
   }
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const result = await generateWithChat(agentMessage, conversationHistory);
+      const result = await evaluateWithModel(agentMessage, conversationHistory);
       return result;
     } catch (error) {
       console.error('[Judge] Attempt', attempt, 'error:', error);
@@ -137,45 +87,68 @@ export async function generateJudgeResponse(
   return fallbackHeuristic(agentMessage);
 }
 
-async function generateWithChat(
+async function evaluateWithModel(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
-  const chat = startJudgeChat();
+  const model = GeminiClient.getModel();
 
-  // Build context with history
-  let message = agentMessage;
+  // Build full prompt
+  let fullPrompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
-    const history = conversationHistory.slice(-4).join('\n\n');
-    message = `=== PREVIOUS ARGUMENTS FROM THIS AGENT ===\n${history}\n\n=== NEW ARGUMENT TO EVALUATE ===\n${agentMessage}`;
+    const history = conversationHistory.slice(-4).join('\n\n---\n\n');
+    fullPrompt += `HISTORY:\n${history}\n\n`;
   }
-
-  // Send message and get response
-  const result = await chat.sendMessage(message);
-  const response = result.response;
   
-  if (!response) {
-    throw new Error('Empty response');
+  fullPrompt += `ARGUMENT:\n"${agentMessage}"\n\nReturn valid JSON.`;
+
+  console.log('[Judge] Prompt length:', fullPrompt.length);
+
+  // Generate content
+  const result = await model.generateContent(fullPrompt);
+  
+  console.log('[Judge] Result received');
+
+  if (!result || !result.response) {
+    throw new Error('No response from Gemini');
   }
 
+  // Get text from response
   let text = '';
   
-  // Extract text from response
-  if (typeof response.text === 'function') {
-    text = response.text();
-  } else if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-    text = response.candidates[0].content.parts[0].text;
+  // Try multiple ways to get text
+  const response = result.response;
+  
+  if (response) {
+    // Try .text() method
+    if (typeof response.text === 'function') {
+      text = response.text();
+      console.log('[Judge] Got text via .text()');
+    }
+    // Try candidates
+    else if (response.candidates && response.candidates.length > 0) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+        text = candidate.content.parts[0].text || '';
+        console.log('[Judge] Got text via candidates');
+      }
+    }
+    // Try direct text property
+    else if (typeof response === 'string') {
+      text = response;
+      console.log('[Judge] Got text via string');
+    }
   }
 
-  console.log('[Judge] Response length:', text.length);
+  console.log('[Judge] Text length:', text.length);
 
-  if (!text || text.trim().length < 10) {
-    throw new Error('Empty response');
+  if (!text || text.trim().length === 0) {
+    throw new Error('Empty text response');
   }
 
   // Parse JSON
-  let parsed = parseJSON(text);
+  let parsed = tryParseJSON(text);
   
   if (!parsed || typeof parsed.score !== 'number') {
     console.log('[Judge] Parse failed, trying extraction...');
@@ -211,8 +184,8 @@ async function generateWithChat(
   };
 }
 
-// JSON parsing utilities
-function parseJSON(text: string): any {
+// JSON utilities
+function tryParseJSON(text: string): any {
   try {
     return JSON.parse(text);
   } catch {
@@ -221,23 +194,19 @@ function parseJSON(text: string): any {
 }
 
 function extractJSON(text: string): any {
-  // Find JSON object boundaries
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   
   if (start !== -1 && end !== -1 && end > start) {
     const jsonStr = text.substring(start, end + 1);
-    
     try {
-      // Clean and parse
       const cleaned = jsonStr
-        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
-        .replace(/,\s*}/g, '}') // Fix trailing commas
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        .replace(/,\s*}/g, '}')
         .replace(/,\s*]/g, ']');
-      
       return JSON.parse(cleaned);
     } catch {
-      // Regex fallback for score patterns
+      // Regex fallback
       const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
       const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
       
@@ -249,11 +218,10 @@ function extractJSON(text: string): any {
       }
     }
   }
-  
   return null;
 }
 
-// Fallback heuristic (strict)
+// Fallback (strict)
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
   const words = message.split(/\s+/);
@@ -261,7 +229,7 @@ function fallbackHeuristic(message: string): JudgeResult {
 
   let score = 0;
 
-  // AI FILLER PENALTY (-30)
+  // AI filler penalty
   if (/I understand|Certainly|As an AI|Let's explore/i.test(message)) {
     score -= 30;
   }
