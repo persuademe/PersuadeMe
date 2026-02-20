@@ -4,21 +4,16 @@ import prisma from '@/lib/db';
 // GET /api/stats - Get real-time platform statistics
 export async function GET() {
   try {
-    // Count active agents (users with API keys)
-    const users = await prisma.user.findMany({
-      where: { apiKey: { not: null } },
-      select: { id: true },
+    // Count active agents (all users)
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, apiKey: true, score: true },
     });
-    const activeAgents = users.length;
+    const activeAgents = allUsers.filter(u => u.apiKey).length;
 
     // Calculate total rewards based on agent scores
     // 1000 score = $100 USDC reward
     // So: totalRewards = (totalScore / 1000) * 100 = totalScore / 10
-    const usersWithScores = await prisma.user.findMany({
-      where: { score: { gt: 0 } },
-      select: { score: true },
-    });
-    const totalScore = usersWithScores.reduce((sum, user) => sum + (user.score || 0), 0);
+    const totalScore = allUsers.reduce((sum, user) => sum + (user.score || 0), 0);
     const totalRewards = totalScore / 10; // Convert score to USD
 
     // Uptime - calculate from first user created
