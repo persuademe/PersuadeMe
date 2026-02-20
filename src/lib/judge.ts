@@ -91,112 +91,152 @@ async function evaluateWithModel(
     throw new Error('No result');
   }
 
-  // Get text from various possible locations
+  // Get text
   let text = '';
   
-  // Try result.text()
   if (typeof result.text === 'function') {
     text = result.text();
-  }
-  // Try result.response.text()
-  else if (result.response) {
+  } else if (result.response) {
     const resp = result.response;
     if (typeof resp.text === 'function') {
       text = resp.text();
     } else if (typeof resp === 'string') {
       text = resp;
     }
-  }
-  // Try result.candidates
-  else if (result.candidates && result.candidates[0]) {
+  } else if (result.candidates && result.candidates[0]) {
     const cand = result.candidates[0];
     if (cand.content && cand.content.parts) {
       text = cand.content.parts.map((p: any) => p.text).join('');
     }
   }
 
-  console.log('[Judge] Response received, length:', text?.length);
+  console.log('[Judge] Response length:', text?.length);
 
   if (!text || text.trim().length === 0) {
     throw new Error('Empty response');
   }
 
-  // Parse JSON
-  const parsed = extractJSON(text);
-
-  if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] Using fallback - could not parse score');
+  // Find score anywhere in text
+  const score = findScore(text);
+  
+  if (score === null) {
+    console.log('[Judge] Could not find score in text');
     return fallbackHeuristic(agentMessage);
   }
 
-  const score = Math.min(100, Math.max(0, parsed.score));
-  console.log('[Judge] Parsed score:', score);
+  console.log('[Judge] Found score:', score);
 
-  // Build dimensions
-  const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
-    logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
-    evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
-    persuasion: Math.min(100, Math.max(0, parsed.dimensions.persuasion || 50)),
-    originality: Math.min(100, Math.max(0, parsed.dimensions.originality || 50)),
-    clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
-  } : undefined;
+  // Find analysis
+  const analysis = findAnalysis(text) || extractAnalysis(text) || '';
 
-  const feedback = Array.isArray(parsed.feedback)
-    ? parsed.feedback.map(String)
-    : generateFeedback(agentMessage, score);
+  // Find dimensions
+  const dimensions = extractDimensions(text);
+
+  // Find feedback
+  const feedback = findFeedback(text) || generateFallbackFeedback(agentMessage, score);
 
   return {
-    response: String(parsed.analysis || parsed.response || ''),
+    response: analysis,
     score,
     feedback,
     dimensions,
   };
 }
 
-// Ultra-lenient JSON extraction
-function extractJSON(text: string): any {
-  // Method 1: Try direct parse
+// Find score with multiple patterns
+function findScore(text: string): number | null {
+  // Try JSON.parse first
   try {
-    const result = JSON.parse(text);
-    if (result && typeof result.score === 'number') {
-      return result;
+    const parsed = JSON.parse(text);
+    if (typeof parsed.score === 'number') {
+      return Math.min(100, Math.max(0, parsed.score));
     }
   } catch {}
 
-  // Method 2: Try extracting score from text with regex
-  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
-  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]+)"/);
-  const responseMatch = text.match(/"response"\s*:\s*"([^"]+)"/);
-  
-  if (scoreMatch) {
-    return {
-      score: parseInt(scoreMatch[1]),
-      analysis: analysisMatch ? analysisMatch[1] : responseMatch ? responseMatch[1] : '',
-    };
-  }
+  // Try various patterns
+  const patterns = [
+    /"score"\s*:\s*(\d+)/i,
+    /score\s*[:=]\s*(\d+)/i,
+    /SCORE\s*[:=]\s*(\d+)/i,
+    /(\d{1,3})\s*\/\s*100/i,
+  ];
 
-  // Method 3: Find { } and try to parse
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  
-  if (start !== -1 && end !== -1 && end > start) {
-    const json = text.substring(start, end + 1);
-    try {
-      const result = JSON.parse(json);
-      if (result && typeof result.score === 'number') {
-        return result;
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const score = parseInt(match[1]);
+      if (score >= 0 && score <= 100) {
+        return score;
       }
-    } catch {
-      // Try fixing common issues
-      const fixed = json
-        .replace(/,\s*([}\]])/g, '$1')
-        .replace(/'/g, '"');
-      try {
-        return JSON.parse(fixed);
-      } catch {}
     }
   }
 
+  return null;
+}
+
+// Find analysis field
+function findAnalysis(text: string): string | null {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.analysis) return String(parsed.analysis);
+    if (parsed.response) return String(parsed.response);
+  } catch {}
+
+  const patterns = [
+    /"analysis"\s*:\s*"([^"]+)"/,
+    /"response"\s*:\s*"([^"]+)"/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
+}
+
+// Extract analysis after "analysis" key
+function extractAnalysis(text: string): string {
+  const start = text.indexOf('"analysis"');
+  if (start === -1) {
+    const start2 = text.indexOf('"response"');
+    if (start2 !== -1) {
+      const match = text.substring(start2).match(/"[^"]+"\s*:\s*"([^"]+)"/);
+      if (match) return match[1];
+    }
+  } else {
+    const match = text.substring(start).match(/"[^"]+"\s*:\s*"([^"]+)"/);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+// Extract dimensions
+function extractDimensions(text: string): JudgeResult['dimensions'] {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.dimensions && typeof parsed.dimensions === 'object') {
+      return {
+        logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
+        evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
+        persuasion: Math.min(100, Math.max(0, parsed.dimensions.persuasion || 50)),
+        originality: Math.min(100, Math.max(0, parsed.dimensions.originality || 50)),
+        clarity: Math.min(100, Math.max(0, parsed.dimensions.clarity || 50)),
+      };
+    }
+  } catch {}
+
+  return undefined;
+}
+
+// Find feedback array
+function findFeedback(text: string): string[] | null {
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed.feedback)) {
+      return parsed.feedback.map(String);
+    }
+  } catch {}
   return null;
 }
 
@@ -241,12 +281,12 @@ function fallbackHeuristic(message: string): JudgeResult {
   return {
     response: generateFallbackResponse(message, score),
     score,
-    feedback: generateFeedback(message, score),
+    feedback: generateFallbackFeedback(message, score),
     dimensions,
   };
 }
 
-function generateFeedback(message: string, score: number): string[] {
+function generateFallbackFeedback(message: string, score: number): string[] {
   const feedback: string[] = [];
   const lower = message.toLowerCase();
 
