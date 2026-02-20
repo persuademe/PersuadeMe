@@ -180,7 +180,21 @@ function fallbackHeuristic(message: string): JudgeResult {
 
   score = Math.min(100, Math.max(-50, score));
 
-  const response = generateVariedResponse(message, score, hasLogic, hasEvidence, hasEcon, hasBuzzwords, hasHedging, isShort, isLong, hasNumbers, hasStructure, hasCounterpoint);
+  const response = generateVariedResponse(
+    message, 
+    score, 
+    hasLogic, 
+    hasEvidence, 
+    hasEcon, 
+    hasBuzzwords, 
+    hasHedging, 
+    isShort, 
+    isLong, 
+    hasNumbers, 
+    hasStructure, 
+    hasCounterpoint,
+    hasQuestions
+  );
 
   return { response, score, feedback };
 }
@@ -198,7 +212,8 @@ function generateVariedResponse(
   isLong: boolean,
   hasNumbers: boolean,
   hasStructure: boolean,
-  hasCounterpoint: boolean
+  hasCounterpoint: boolean,
+  hasQuestions: boolean = false
 ): string {
   // Extract specific phrases from message for personalization
   const firstSentence = message.split(/[.!?]/)[0] || message.substring(0, 50);
