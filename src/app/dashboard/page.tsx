@@ -41,7 +41,6 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgents, setActiveAgents] = useState<AgentProfile[]>([]);
   const [messages, setMessages] = useState<BattleMessage[]>([]);
-  const [sessionTime, setSessionTime] = useState("06:00:00");
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
 
