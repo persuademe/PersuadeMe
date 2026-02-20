@@ -1,4 +1,4 @@
-// /api/conversations/route.ts - Battle Feed API (Optimized)
+// /api/conversations/route.ts - Battle Feed API (Highly Optimized)
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, disconnectPrisma } from '@/lib/db';
 
@@ -11,15 +11,14 @@ async function withDisconnect<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-// GET /api/conversations - Get live battle feed (Cached: 5s)
+// GET /api/conversations - Get live battle feed (Cached: 10s)
 export async function GET(request: NextRequest) {
   return withDisconnect(async () => {
     try {
       const { searchParams } = new URL(request.url);
       const walletAddress = searchParams.get('wallet');
       const apiKey = searchParams.get('apiKey');
-      const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-      const offset = parseInt(searchParams.get('offset') || '0');
+      const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
       const recentOnly = searchParams.get('recent') === 'true';
 
       // Single optimized query - no N+1
@@ -28,10 +27,11 @@ export async function GET(request: NextRequest) {
           ? { user: { walletAddress: walletAddress.toLowerCase() } }
           : apiKey 
             ? { user: { apiKey } }
-            : {},
+            : recentOnly
+              ? { score: { gte: 50 } } // Only show scored conversations
+              : {},
         orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: recentOnly ? 10 : limit,
+        take: recentOnly ? 5 : limit,
         select: {
           id: true,
           role: true,
@@ -53,21 +53,17 @@ export async function GET(request: NextRequest) {
         timestamp: conv.createdAt.toISOString(),
         speaker: conv.role === 'user' ? 'agent' : 'judge',
         agentName: conv.user.agentName || conv.user.walletAddress?.slice(0, 6) + '...' || 'Agent',
-        content: conv.content,
+        content: conv.content.length > 200 ? conv.content.substring(0, 200) + '...' : conv.content,
         score: conv.score,
         wallet: conv.user.walletAddress,
       }));
 
-      // Cache header for 5 seconds (reduces DB load)
+      // Aggressive caching - reduces DB load significantly
       return NextResponse.json(
-        {
-          success: true,
-          battleFeed,
-          cached: true,
-        },
+        { success: true, battleFeed },
         {
           headers: {
-            'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=10',
+            'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
           },
         }
       );

@@ -285,17 +285,17 @@ function fallbackHeuristic(message: string): JudgeResult {
   // Bonuses - need multiple strong elements to score well
   // Specific data
   if (/\d+%?|\$\d+|\$\d{3,}|million|billion/i.test(message)) {
-    score += 30;
+    score += 20;
   }
 
   // Evidence
   if (/data|evidence|study|research|according to|source/i.test(message)) {
-    score += 25;
+    score += 15;
   }
 
   // Strong logic connectors
   if (/because|therefore|thus|hence|consequently/i.test(message)) {
-    score += 30;
+    score += 20;
   }
 
   // Counter-arguments addressed
