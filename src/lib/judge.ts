@@ -1,4 +1,4 @@
-// Judge Response Generator - Robust implementation
+// Judge Response Generator - Robust implementation with SDK singleton
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -14,6 +14,39 @@ export interface JudgeResult {
     originality: number;
     clarity: number;
   };
+}
+
+// SDK Singleton - Pre-initialized to avoid overhead
+class GeminiClient {
+  private static instance: GoogleGenerativeAI | null = null;
+  private static model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
+
+  static getInstance(): GoogleGenerativeAI {
+    if (!this.instance) {
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY not set');
+      }
+      this.instance = new GoogleGenerativeAI(GEMINI_API_KEY);
+      console.log('[Gemini] SDK initialized');
+    }
+    return this.instance;
+  }
+
+  static getModel() {
+    if (!this.model) {
+      const genAI = this.getInstance();
+      this.model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-pro',
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+          maxOutputTokens: 1200,
+        },
+      });
+      console.log('[Gemini] Model loaded');
+    }
+    return this.model;
+  }
 }
 
 const SYSTEM_PROMPT = `You are the "strict Judge" for Persuade Me arena. Cold, elite, rigorous.
@@ -38,23 +71,6 @@ OUTPUT: Return ONLY valid JSON:
   },
   "feedback": ["tip1", "tip2"]
 }`;
-
-function getGenAI(): GoogleGenerativeAI {
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
-  return new GoogleGenerativeAI(GEMINI_API_KEY);
-}
-
-function getModel() {
-  const genAI = getGenAI();
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.5-pro',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.2,
-      maxOutputTokens: 1200,
-    },
-  });
-}
 
 // Main function
 export async function generateJudgeResponse(
@@ -84,7 +100,7 @@ async function generateWithModel(
   agentMessage: string,
   conversationHistory?: string[]
 ): Promise<JudgeResult> {
-  const model = getModel();
+  const model = GeminiClient.getModel();
 
   let prompt = SYSTEM_PROMPT + '\n\n';
   
@@ -95,41 +111,47 @@ async function generateWithModel(
   prompt += `ARGUMENT: "${agentMessage}"\n\nReturn valid JSON only.`;
 
   const result = await model.generateContent(prompt);
-  const response = result.response;
   
-  if (!response) throw new Error('No response');
+  if (!result || !result.response) {
+    throw new Error('Empty response from Gemini');
+  }
 
   let text = '';
+  
+  // Try multiple ways to get text
+  const response = result.response;
+  
   if (typeof response.text === 'function') {
     text = response.text();
   } else if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
     text = response.candidates[0].content.parts[0].text;
+  } else if (typeof response === 'string') {
+    text = response;
   }
 
-  console.log('[Judge] Raw response length:', text.length);
-  console.log('[Judge] Raw response preview:', text.substring(0, 200));
+  console.log('[Judge] Response length:', text.length);
 
   if (!text || text.trim().length < 10) {
     throw new Error('Empty response');
   }
 
-  // Try multiple JSON extraction methods
+  // Parse JSON
   let parsed = tryParseJSON(text);
   
-  if (!parsed || typeof parsed.score !== 'number' || !parsed.analysis) {
-    console.log('[Judge] Primary parse failed, trying extraction...');
-    parsed = extractJSONObject(text);
+  if (!parsed || typeof parsed.score !== 'number') {
+    console.log('[Judge] Parse failed, trying extraction...');
+    parsed = extractJSON(text);
   }
 
   if (!parsed || typeof parsed.score !== 'number') {
-    console.log('[Judge] All JSON methods failed, using fallback');
+    console.log('[Judge] All JSON methods failed');
     return fallbackHeuristic(agentMessage);
   }
 
   const score = Math.min(100, Math.max(0, parsed.score));
   console.log('[Judge] Success! Score:', score);
 
-  // Build dimensions
+  // Dimensions
   const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
     logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
     evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
@@ -150,7 +172,7 @@ async function generateWithModel(
   };
 }
 
-// Method 1: Direct parse
+// Parse methods
 function tryParseJSON(text: string): any {
   try {
     return JSON.parse(text);
@@ -159,39 +181,32 @@ function tryParseJSON(text: string): any {
   }
 }
 
-// Method 2: Extract JSON object from text
-function extractJSONObject(text: string): any {
-  // Find first { and last }
-  const startIdx = text.indexOf('{');
-  const lastIdx = text.lastIndexOf('}');
+function extractJSON(text: string): any {
+  // Find JSON object
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
   
-  if (startIdx !== -1 && lastIdx !== -1 && lastIdx > startIdx) {
-    const jsonStr = text.substring(startIdx, lastIdx + 1);
+  if (start !== -1 && end !== -1 && end > start) {
+    const jsonStr = text.substring(start, end + 1);
     try {
-      return JSON.parse(jsonStr);
-    } catch {
-      // Try fixing common issues
-      const fixed = jsonStr
-        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control chars
-        .replace(/,\s*}/g, '}') // Trailing commas
+      // Clean common issues
+      const cleaned = jsonStr
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        .replace(/,\s*}/g, '}')
         .replace(/,\s*]/g, ']');
-      try {
-        return JSON.parse(fixed);
-      } catch {
-        return null;
+      return JSON.parse(cleaned);
+    } catch {
+      // Try regex for key patterns
+      const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
+      const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
+      
+      if (scoreMatch) {
+        return {
+          score: parseInt(scoreMatch[1]),
+          analysis: analysisMatch ? analysisMatch[1] : '',
+        };
       }
     }
-  }
-  
-  // Try regex for key-value patterns
-  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
-  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]*)"/);
-  
-  if (scoreMatch) {
-    return {
-      score: parseInt(scoreMatch[1]),
-      analysis: analysisMatch ? analysisMatch[1] : '',
-    };
   }
   
   return null;
@@ -243,7 +258,7 @@ function fallbackHeuristic(message: string): JudgeResult {
   };
 }
 
-// Generate feedback
+// Feedback generator
 function generateFallbackFeedback(message: string, score: number): string[] {
   const feedback: string[] = [];
   const lower = message.toLowerCase();
@@ -273,7 +288,7 @@ function generateFallbackFeedback(message: string, score: number): string[] {
   return feedback;
 }
 
-// Generate fallback response
+// Response generator
 function generateFallbackResponse(message: string, score: number): string {
   const lower = message.toLowerCase();
   const words = message.split(/\s+/);
@@ -281,7 +296,7 @@ function generateFallbackResponse(message: string, score: number): string {
   const hasAIFiller = /I understand|Certainly|As an AI|Let's explore/i.test(message);
 
   if (score >= 85) {
-    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor. Genuine original thinking. Worthy of the prize.`;
+    return `EXCEPTIONAL (${score}/100)\n\nYour ${wordCount}-word argument demonstrates mastery. Specific data and logical rigor few achieve. Genuine original thinking. Worthy of the prize.`;
   } else if (score >= 70) {
     return `STRONG (${score}/100)\n\nSolid argumentation with substance. ${hasAIFiller ? 'Avoid AI filler.' : ''}Specific evidence ${/\d+%?|\$\d+/.test(message) ? 'supports' : 'would strengthen'} your case. Shows genuine reasoning.`;
   } else if (score >= 50) {
