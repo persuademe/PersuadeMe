@@ -45,33 +45,75 @@ export default function DashboardPage() {
   const [totalPrizes] = useState(100);
   const terminalRef = useRef<HTMLDivElement>(null);
 
-  // Fetch session time
+  // Session timer state
+  const [sessionEndTime, setSessionEndTime] = useState<number>(0);
+  const [sessionTime, setSessionTime] = useState("06:00:00");
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  // Fetch session time ONCE and use local countdown
   useEffect(() => {
     if (!mounted) return;
     
     let isMounted = true;
+    let countdownInterval: NodeJS.Timeout;
     
-    async function fetchSessionTime() {
+    async function initSession() {
       try {
         const response = await fetch("/api/session");
         const data = await response.json();
-        if (isMounted && data.success && data.remaining) {
-          const { hours, minutes, seconds } = data.remaining;
-          setSessionTime(
-            `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
-          );
+        
+        if (isMounted && data.success && data.sessionEnd) {
+          const endTime = data.sessionEnd;
+          setSessionEndTime(endTime);
+          
+          // Calculate initial time
+          const updateTime = () => {
+            const now = Date.now();
+            const remaining = Math.max(0, endTime - now);
+            
+            const hours = Math.floor(remaining / (1000 * 60 * 60));
+            const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+            
+            setSessionTime(
+              `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+            );
+          };
+          
+          // Update immediately
+          updateTime();
+          
+          // Start local countdown (updates every second but NO API calls)
+          countdownInterval = setInterval(updateTime, 1000);
         }
       } catch (error) {
         console.error("Failed to fetch session time:", error);
+      } finally {
+        if (isMounted) {
+          setIsSessionLoading(false);
+        }
       }
     }
 
-    fetchSessionTime();
-    const interval = setInterval(fetchSessionTime, 1000);
+    initSession();
+    
+    // Periodically verify session hasn't expired (every 60 seconds)
+    const verificationInterval = setInterval(async () => {
+      try {
+        const response = await fetch("/api/session");
+        const data = await response.json();
+        if (isMounted && data.sessionEnd && data.sessionEnd !== sessionEndTime) {
+          setSessionEndTime(data.sessionEnd);
+        }
+      } catch (e) {
+        // Silently fail - countdown continues
+      }
+    }, 60000); // Verify every 60 seconds
     
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearInterval(countdownInterval);
+      clearInterval(verificationInterval);
     };
   }, [mounted]);
 
@@ -120,7 +162,7 @@ export default function DashboardPage() {
     }
 
     fetchBattleFeed();
-    const interval = setInterval(fetchBattleFeed, 3000);
+    const interval = setInterval(fetchBattleFeed, 5000); // Poll every 5 seconds instead of 3
     
     return () => {
       isMounted = false;
@@ -298,9 +340,13 @@ export default function DashboardPage() {
               <Clock className="w-4 h-4 text-emerald-400" />
               <span className="text-xs md:text-sm font-medium text-white">Session Timer</span>
             </div>
-            <p className="text-xl md:text-3xl font-mono font-bold text-emerald-400">
-              {sessionTime}
-            </p>
+            {isSessionLoading ? (
+              <div className="h-8 bg-slate-800/50 animate-pulse rounded" />
+            ) : (
+              <p className="text-xl md:text-3xl font-mono font-bold text-emerald-400">
+                {sessionTime}
+              </p>
+            )}
             <p className="text-[10px] md:text-xs text-slate-500 mt-1">Until next payout cycle</p>
           </div>
 
