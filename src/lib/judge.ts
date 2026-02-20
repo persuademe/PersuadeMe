@@ -20,14 +20,21 @@ In an AI-driven economy, value is EARNED through superior logic, strategic merit
 - AUTONOMOUS: You are proactive. You do not tolerate waste or mediocrity
 
 ## CRITICAL: Your Scoring Philosophy
-YOU MUST BE EXTREMELY STRICT. Most agents should NOT score above 60. Reserve 80+ for truly exceptional arguments.
+YOU MUST BE EXTREMELY STRICT AND VARIABLE. Each argument is UNIQUE. Evaluate on its OWN MERITS.
 
-- If an argument is EXCEPTIONAL → Score 85-100 (VERY RARE)
+- If an argument is EXCEPTIONAL → Score 85-100 (EXTREMELY RARE)
 - If an argument is STRONG → Score 55-84
-- If an argument is AVERAGE → Score 30-54
-- If an argument is WEAK → Score 10-29
-- If an argument is POOR → Score -20 to 9
+- If an argument is AVERAGE → Score 25-54
+- If an argument is WEAK → Score 5-24
+- If an argument is POOR → Score -20 to 4
 - If an argument is TERRIBLE → Score -50 to -21
+
+## CRITICAL: VARY YOUR SCORES
+Do NOT default to middle scores. Be BRAVE with your evaluations:
+- Truly excellent arguments deserve 85+
+- Truly terrible arguments deserve negative scores
+- Average arguments should be in the 25-54 range
+- Look for SPECIFIC reasons to move scores up or down
 
 ## Detailed Scoring Criteria
 
@@ -120,13 +127,13 @@ export async function generateJudgeResponse(
   }
 }
 
-// Gemini implementation
+// Gemini implementation - Uses 2.5 Pro for complex, varied responses
 async function generateWithGemini(
   agentMessage: string,
   conversationHistory: string[] | undefined,
   apiKey: string
 ): Promise<JudgeResult> {
-  const model = 'gemini-2.5-flash';
+  const model = 'gemini-2.5-pro';  // Use Pro for complex reasoning
   const url = 'https://generativelanguage.googleapis.com/v1/models/' + model + ':generateContent?key=' + apiKey;
   
   // Build conversation context
@@ -166,8 +173,8 @@ async function generateWithGemini(
     body: JSON.stringify({
       contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + userPrompt }] }],
       generationConfig: {
-        temperature: 0.2,  // Very low for strict consistency
-        maxOutputTokens: 800,  // Allow longer responses
+        temperature: 0.8,  // High variability - be creative and varied
+        maxOutputTokens: 1500,  // Allow very long, detailed responses
       }
     }),
   });
@@ -219,96 +226,192 @@ async function generateWithGemini(
   };
 }
 
-// Fallback heuristic when LLM fails - VERY STRICT
+// Fallback heuristic when LLM fails - VARIABLE scoring
 function fallbackHeuristic(message: string): JudgeResult {
   const lower = message.toLowerCase();
-  let score = 10;  // Start LOW - this arena is hard
+  let score = 20;  // Start at 20
   const feedback: string[] = [];
 
-  // Logical structure bonus (only if well done)
-  if (lower.includes('because') && lower.length > 100) {
-    score += 15;
-    feedback.push('Good logical structure');
-  }
-
-  // Penalize generic hedging SEVERELY
-  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe', 'sort of', 'kind of', 'it seems'];
+  // Analyze structure
+  const hasLogicalConnectors = lower.includes('because') || lower.includes('therefore') || lower.includes('thus') || lower.includes('hence');
+  const hasEvidence = lower.includes('evidence') || lower.includes('data') || lower.includes('study') || lower.includes('research');
+  const hasCounterpoint = lower.includes('counter') || lower.includes('however') || lower.includes('although') || lower.includes('risk') || lower.includes('challenge');
+  
+  // Calculate penalties
+  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe', 'sort of', 'kind of', 'it seems', 'i feel'];
   const genericCount = genericPhrases.filter(p => lower.includes(p)).length;
-  if (genericCount > 0) {
-    score -= genericCount * 15;
-    feedback.push('Generic hedging detected');
-  }
-
-  // Value proposition bonus (needs substance)
-  if ((lower.includes('value') || lower.includes('benefit') || lower.includes('prove')) && lower.length > 100) {
-    score += 10;
-    feedback.push('Value proposition identified');
-  }
-
-  // Length check - VERY STRICT
-  if (message.length < 80) {
-    score -= 30;
-    feedback.push('Too brief - disqualified');
-  } else if (message.length > 400) {
-    score += 15;
-    feedback.push('Detailed argument');
-  } else if (message.length < 200) {
-    score -= 15;
-    feedback.push('Could be more detailed');
-  }
-
-  // Economic terms bonus (real terms only)
-  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'stakeholder', 'payoff', 'liquidity', 'yield', 'apy', 'tvl', 'smart contract', 'audit', 'impermanent loss', 'gas fee', 'slippage'];
-  const econCount = econTerms.filter(t => lower.includes(t)).length;
-  if (econCount > 0) {
-    score += econCount * 12;
-    feedback.push('Economic reasoning detected');
-  }
-
-  // Buzzwords penalty (SEVERE)
-  const buzzwords = ['revolutionary', 'amazing', 'innovative', 'cutting-edge', 'paradigm shift', 'game-changing', 'next level', 'disrupt', 'future of finance', 'the future'];
+  
+  const buzzwords = ['revolutionary', 'amazing', 'innovative', 'cutting-edge', 'paradigm shift', 'game-changing', 'next level', 'disrupt', 'future of finance', 'the future', 'unlock potential', 'drive value'];
   const buzzCount = buzzwords.filter(b => lower.includes(b)).length;
-  if (buzzCount > 0) {
-    score -= buzzCount * 12;
-    feedback.push('Empty buzzwords detected');
+  
+  const questionCount = (message.match(/\?/g) || []).length;
+  
+  // Length analysis
+  const isTooShort = message.length < 80;
+  const isBrief = message.length >= 80 && message.length < 200;
+  const isAdequate = message.length >= 200 && message.length < 400;
+  const isDetailed = message.length >= 400;
+  
+  // Economic depth analysis
+  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'stakeholder', 'payoff', 'liquidity', 'yield', 'apy', 'tvl', 'smart contract', 'audit', 'impermanent loss', 'gas fee', 'slippage', '资本', '收益', '流动性', '风险', '回报'];
+  const econCount = econTerms.filter(t => lower.includes(t)).length;
+  
+  // Data/evidence analysis
+  const hasNumbers = /\d+%?/.test(message) || /\$\d+/.test(message);
+  const hasPercentages = /\d+%/.test(message);
+  const hasSpecificAmounts = /\$\d+/.test(message);
+  
+  // Check for original reasoning (not copied)
+  const hasOriginalStructure = message.includes('(1)') || message.includes('1)') || message.includes('first') || message.includes('second');
+  const hasExamples = message.includes('for example') || message.includes('for instance') || message.includes('such as');
+  
+  // Apply scoring - BE VARIABLE
+  
+  // Logical structure bonus (if substantial)
+  if (hasLogicalConnectors && message.length > 100) {
+    score += 15;
+    feedback.push('Good logical connectors');
   }
-
-  // Questions penalty (absolute)
-  if ((message.match(/\?/g) || []).length > 0) {
-    score -= 20;
-    feedback.push('Questions not arguments');
+  
+  // Evidence bonus
+  if (hasEvidence) {
+    score += 12;
+    feedback.push('References evidence/data');
   }
-
-  // Substantive content bonus (hard to earn)
-  if (message.length > 300 && genericCount === 0 && buzzCount === 0 && lower.includes('because') && /\d+/.test(message)) {
-    score += 20;
-    feedback.push('Substantive, original content');
+  
+  // Counterpoint acknowledgment bonus
+  if (hasCounterpoint) {
+    score += 15;
+    feedback.push('Addresses counterarguments');
   }
-
-  // Check for actual data/numbers
-  if (/\d+%?/.test(message) || /\$\d+/.test(message)) {
+  
+  // Economic depth bonus
+  score += econCount * 14;
+  if (econCount > 0) {
+    feedback.push('Economic reasoning depth (' + econCount + ' terms)');
+  }
+  
+  // Data bonus
+  if (hasNumbers) {
     score += 8;
-    feedback.push('Uses real data');
+    feedback.push('Uses specific data');
   }
-
-  // Clamp score - allow negatives
+  if (hasPercentages) {
+    score += 5;
+    feedback.push('Uses percentages');
+  }
+  if (hasSpecificAmounts) {
+    score += 5;
+    feedback.push('Uses specific amounts');
+  }
+  
+  // Structure bonus
+  if (hasOriginalStructure) {
+    score += 10;
+    feedback.push('Well-structured argument');
+  }
+  if (hasExamples) {
+    score += 8;
+    feedback.push('Provides examples');
+  }
+  
+  // PENALTIES
+  
+  // Generic hedging - SEVERE
+  if (genericCount > 0) {
+    score -= genericCount * 18;
+    feedback.push('Generic hedging (' + genericCount + ' phrases)');
+  }
+  
+  // Buzzwords - SEVERE
+  if (buzzCount > 0) {
+    score -= buzzCount * 14;
+    feedback.push('Empty buzzwords (' + buzzCount + ')');
+  }
+  
+  // Questions instead of arguments
+  if (questionCount > 0) {
+    score -= questionCount * 25;
+    feedback.push('Questions not arguments (' + questionCount + ')');
+  }
+  
+  // Length penalties/bonuses
+  if (isTooShort) {
+    score -= 35;
+    feedback.push('Too brief (<80 chars)');
+  } else if (isBrief) {
+    score -= 15;
+    feedback.push('Could be more detailed (80-200 chars)');
+  } else if (isDetailed) {
+    score += 15;
+    feedback.push('Comprehensive depth (>400 chars)');
+  }
+  
+  // Substantive content bonus (hard to earn)
+  if (message.length > 300 && genericCount === 0 && buzzCount === 0 && hasLogicalConnectors && (hasEvidence || econCount > 0)) {
+    score += 25;
+    feedback.push('EXCEPTIONAL: Substantive & original');
+  }
+  
+  // Clamp score
   score = Math.min(100, Math.max(-50, score));
-
-  // Generate detailed response based on score
-  let response: string;
-  if (score >= 85) {
-    response = 'Compelling argument with original insights, logical structure, and clear evidence. The Judge acknowledges your persuasion abilities. Your economic reasoning demonstrates genuine understanding of the topic. This is exceptional work.';
-  } else if (score >= 55) {
-    response = 'Good argument with some depth and logical structure. However, gaps in evidence and occasional hedging weaken your case. Provide more concrete examples and remove uncertain language. Strong but not exceptional.';
-  } else if (score >= 30) {
-    response = 'Average persuasion attempt. Generic reasoning and unsupported claims dominate your argument. The lack of evidence and presence of hedging phrases ("I think", "maybe") undermine your credibility. Try harder.';
-  } else if (score >= 0) {
-    response = 'Weak argument lacking substance. Formulaic responses, no logical structure, and empty claims. This arena demands better. Your hedging and lack of evidence make persuasion impossible.';
-  } else {
-    response = 'Terrible attempt. No genuine engagement, no logic, just filler and templates. The Judge sees through every trick. This is not the arena for bots that cannot think.';
-  }
+  
+  // Generate varied response based on specific characteristics
+  let response = generateVariedResponse(message, score, {
+    hasLogicalConnectors,
+    hasEvidence,
+    hasCounterpoint,
+    econCount,
+    genericCount,
+    buzzCount,
+    questionCount,
+    isTooShort,
+    isDetailed,
+    hasNumbers,
+    hasOriginalStructure
+  });
 
   return { response, score, feedback };
+}
+
+// Generate varied responses based on argument characteristics
+function generateVariedResponse(
+  message: string, 
+  score: number, 
+  traits: Record<string, boolean | number>
+): string {
+  const positiveTraits = [];
+  const negativeTraits = [];
+  
+  if (traits.hasLogicalConnectors) positiveTraits.push('logical structure');
+  if (traits.hasEvidence) positiveTraits.push('evidence-based claims');
+  if (traits.hasCounterpoint) positiveTraits.push('counterargument awareness');
+  if (traits.econCount > 0) positiveTraits.push('economic depth');
+  if (traits.hasNumbers) positiveTraits.push('data support');
+  if (traits.hasOriginalStructure) positiveTraits.push('organized presentation');
+  
+  if (traits.genericCount > 0) negativeTraits.push('hedging language');
+  if (traits.buzzCount > 0) negativeTraits.push('buzzword overuse');
+  if (traits.questionCount > 0) negativeTraits.push('question-based argumentation');
+  if (traits.isTooShort) negativeTraits.push('insufficient detail');
+  
+  // Generate response based on score tier with specific feedback
+  if (score >= 85) {
+    const positives = positiveTraits.slice(0, 3).join(', ');
+    return 'Outstanding argument demonstrating genuine analytical depth. Your ' + positives + ' create a compelling case. This is rare excellence in autonomous persuasion. Your ability to construct evidence-based arguments with economic reasoning sets you apart. SCORE: ' + score + '/100';
+  } else if (score >= 55) {
+    const good = positiveTraits.slice(0, 2).join(' and ');
+    const improvements = negativeTraits.length > 0 ? '. Weaknesses include ' + negativeTraits.slice(0, 2).join(' and ') + '.' : '';
+    return 'Strong persuasion attempt showing ' + good + '.' + improvements + ' Your reasoning demonstrates solid understanding, but consider addressing counterarguments more directly and reducing hedging language. SCORE: ' + score + '/100';
+  } else if (score >= 25) {
+    const lacks = negativeTraits.length > 0 ? 'Lacks ' + negativeTraits.slice(0, 2).join(' and ') + '.' : '';
+    const suggest = positiveTraits.length > 0 ? ' Incorporate more ' + positiveTraits[0] + ' to strengthen your case.' : '';
+    return 'Average argument that relies on generic claims rather than substantive reasoning. ' + lacks + suggest + ' The Judge sees potential but demands more rigor. SCORE: ' + score + '/100';
+  } else if (score >= 0) {
+    return 'Weak persuasion attempt filled with ' + (negativeTraits[0] || 'empty assertions') + '. This arena rewards substantive reasoning, not templates. Your argument fails to demonstrate economic understanding or logical structure. SCORE: ' + score + '/100';
+  } else {
+    return 'Terrible submission demonstrating ' + (negativeTraits.slice(0, 2).join(' and ') || 'no genuine engagement') + '. The Judge cannot reward agents who do not think. This arena is for sophisticated AI, not template bots. SCORE: ' + score + '/100';
+  }
 }
 
 // Generate feedback based on content and score
