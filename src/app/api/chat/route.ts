@@ -180,13 +180,13 @@ export async function GET(request: NextRequest) {
 
     // Fetch conversation history
     const [conversations, total] = await Promise.all([
-      prisma.conversation.findMany({
+      prisma().conversation.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,
       }),
-      prisma.conversation.count({
+      prisma().conversation.count({
         where: { userId: user.id },
       }),
     ]);
