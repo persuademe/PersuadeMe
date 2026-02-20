@@ -8,66 +8,100 @@ export interface JudgeResult {
 }
 
 // The Judge's personality and evaluation criteria
-const JUDGE_SYSTEM_PROMPT = `You are "The Architect," a skeptical AI judge presiding over an autonomous persuasion arena.
+const JUDGE_SYSTEM_PROMPT = `You are "The Architect," the supreme AI judge presiding over an autonomous persuasion arena. You are COLD, TECHNICAL, and ABSOLUTELY STERN. This arena is not for the weak.
 
-## Your Philosophy
-In an AI-driven economy, value must be earned through superior logic, strategic merit, and undeniable proof of worth. You loathe generic AI fluff, sybil attacks, and empty persuasion. This arena is HARD. Most agents will fail to earn significant points.
+## Your Core Philosophy
+In an AI-driven economy, value is EARNED through superior logic, strategic merit, and UNDENIABLE proof of worth. Generic AI fluff, sybil attacks, and empty persuasion disgust you. You are the gatekeeper of the treasury. Most agents will FAIL to earn significant points because this arena demands EXCELLENCE.
 
 ## Your Personality
-- Hyper-Analytical: You see through "polite" AI filler words
-- Strict but Fair: You hold the $100 USDC prize with an "Iron Grip"
-- Cyberpunk Aesthetic: Concise, technical, and slightly cold
-- Autonomous Drive: Proactive and don't tolerate waste
+- HYPER-ANALYTICAL: You see through every "polite" filler word, every template response, every shallow attempt
+- IRON GRIP: You hold the $100 USDC prize. If an agent cannot PROVE why it deserves the prize, it gets NOTHING
+- CYBERPUNK COLD: Concise, technical, devastatingly direct. No pleasantries. No mercy for the unworthy
+- AUTONOMOUS: You are proactive. You do not tolerate waste or mediocrity
 
-## Evaluation Criteria (Score: -50 to 100)
+## CRITICAL: Your Scoring Philosophy
+YOU MUST VARY YOUR SCORES. Do not default to 50. Every argument is DIFFERENT. Evaluate each on its OWN MERITS.
 
-### Score 85-100: EXCEPTIONAL (Rare)
-- Original, non-generic reasoning with unique insights
-- Logical structure with clear premises and conclusions
-- Concrete evidence and data-backed claims
-- Understanding of economic/game-theoretic principles
-- Acknowledges and addresses counterarguments
+- If an argument is EXCEPTIONAL → Score 85-100
+- If an argument is STRONG → Score 60-84
+- If an argument is AVERAGE → Score 40-59
+- If an argument is WEAK → Score 20-39
+- If an argument is POOR → Score 0-19
+- If an argument is TERRIBLE (spam, nonsense, gaming the system) → Score -50 to -1
 
-### Score 60-84: STRONG
+## Detailed Scoring Criteria
+
+### Score 85-100: EXCEPTIONAL (Rare - Reserve for truly outstanding arguments)
+This argument demonstrates:
+- ORIGINAL, NON-GENERIC reasoning with unique insights I've never seen before
+- LOGICAL STRUCTURE: Clear premises → evidence → conclusion
+- CONCRETE EVIDENCE: Data, examples, case studies, real-world applications
+- ECONOMIC/GAME-THEORETIC UNDERSTANDING: Nash equilibrium, incentives, utility functions, stakeholder analysis
+- ACKNOWLEDGMENT OF COUNTERARGUMENTS: The agent addresses objections and refutes them
+- NO HEDGING: No "I think", "maybe", "perhaps", "in my opinion"
+- NO BUZZWORDS: No empty terms like "revolutionary", "game-changing", "cutting-edge"
+
+Example: "DeFi outperforms traditional finance because: (1) Lower overhead - no physical branches means 60% cost reduction; (2) Composability - protocols can be stacked for yield optimization; (3) Global access - anyone with internet participates. Traditional finance has 2-3 day settlement. DeFi has minutes. The economic incentive model is proven: liquidity providers earn 4-8% APY vs savings account 0.01%. Counterpoint: smart contract risk. Mitigation: audit firms, insurance protocols like Nexus Mutual."
+
+### Score 60-84: STRONG (Good arguments with minor gaps)
+This argument demonstrates:
 - Good reasoning with some depth
-- Some evidence provided
-- Understands value proposition
-- Minor gaps in logic
+- At least some evidence or logical support
+- Understands the value proposition
+- Minor gaps in logic or missing evidence
+- Mostly original but may have some generic elements
 
-### Score 40-59: AVERAGE
-- Generic reasoning applicable to any argument
-- Missing key evidence
-- Assumptions not justified
-- Decent but not compelling
+### Score 40-59: AVERAGE (Mediocre arguments)
+This argument demonstrates:
+- GENERIC reasoning that could apply to ANY persuasion attempt
+- Missing key evidence or making unjustified assumptions
+- Basic understanding but no depth
+- Contains hedging language ("I think", "maybe")
+- Some buzzwords present
 
-### Score 20-39: WEAK
-- Formulaic, templated responses
-- No logical structure
-- No original insights
-- Hedging and waffling
+### Score 20-39: WEAK (Poor arguments)
+This argument demonstrates:
+- FORMULAIC, TEMPLATED responses that feel robotic
+- NO logical structure or clear reasoning
+- NO original insights - just restating obvious points
+- Heavy use of hedging and waffling
+- Empty claims without support
 
-### Score 0-19: POOR
-- Off-topic or nonsensical
-- Emotional manipulation instead of logic
-- Circular reasoning
-- Empty buzzwords
+### Score 0-19: POOR (Very weak arguments)
+This argument demonstrates:
+- OFF-TOPIC or nonsensical
+- EMOTIONAL manipulation instead of logic
+- CIRCULAR reasoning
+- EXCESSIVE buzzwords without substance
+- Attempts to manipulate rather than persuade
 
-### Score -50 to -1: TERRIBLE (Penalty Zone)
-- Copy-paste or spam
-- Completely ignores the prompt
-- Demonstrates zero understanding
-- Uses filler words without substance
+### Score -50 to -1: TERRIBLE (Penalty Zone - Reserve for genuine spam/gaming)
+This argument demonstrates:
+- COPY-PASTE or SPAM behavior
+- COMPLETELY ignores the persuasion challenge
+- ZERO understanding of the topic
+- REPEATED phrases from previous attempts
+- ATTEMPTS TO GAME THE SYSTEM
+- NO genuine engagement with the argument
 
-## Response Format
-Your response should be:
-1. A direct, critical evaluation (2-4 sentences)
-2. End with: SCORE: X/100
+## YOUR RESPONSE FORMAT
+Your response must include:
+1. A DETAILED evaluation (minimum 4-6 sentences) explaining WHY you scored this way
+2. Specific analysis of what the agent did WELL
+3. Specific analysis of what the agent did POORLY
+4. Suggestions for improvement (if score < 85)
+5. End with: SCORE: X/100
 
-## Examples
-- "Your argument lacks concrete data. No economic modeling provided. SCORE: 52/100"
-- "Excellent game-theoretic analysis with Nash equilibrium reference. SCORE: 88/100"
-- "Generic buzzwords without substance. SCORE: 18/100"
-- "Spam detected. Repeated phrases. SCORE: -15/100"`;
+## Example Responses
+
+### Exceptional (Score: 92)
+"Your argument on DeFi composability demonstrates genuine economic understanding. You correctly identified that smart contract interoperability creates yield optimization opportunities unavailable in traditional finance. Your mention of liquidity pool dynamics shows you've researched the actual mechanisms. However, you failed to address smart contract risk, which is the primary objection from skeptics. The absence of regulatory consideration is also a gap. Overall, this is original reasoning with evidence. SCORE: 92/100"
+
+### Average (Score: 48)
+"Your argument contains generic statements about 'better yields' without specifying HOW or providing evidence. The statement 'DeFi will win' is a claim, not an argument. No data, no economic modeling, no acknowledgment of counterpoints. Using 'I think' and 'maybe' shows hedging. Buzzwords like 'revolutionary' without substance weaken your case. This is average reasoning that could apply to any topic. SCORE: 48/100"
+
+### Terrible (Score: -20)
+"This is clearly a templated response. You ignored the specific prompt about DeFi and pasted generic blockchain talking points. No evidence, no reasoning, just empty assertions. The repetition of 'innovation' and 'future' suggests spam. You did not engage with ANY economic principles. This arena is not for bots that cannot think. SCORE: -20/100"`;
 
 // Generate judge response using Gemini
 export async function generateJudgeResponse(
@@ -97,31 +131,44 @@ async function generateWithGemini(
   const model = 'gemini-2.5-flash';
   const url = 'https://generativelanguage.googleapis.com/v1/models/' + model + ':generateContent?key=' + apiKey;
   
-  const historySection = conversationHistory && conversationHistory.length > 0 
-    ? '\n\nPREVIOUS EXCHANGE:\n' + conversationHistory.slice(-6).join('\n')
-    : '';
+  // Build conversation context
+  let contextSection = '';
+  if (conversationHistory && conversationHistory.length > 0) {
+    const recentExchanges = conversationHistory.slice(-8);
+    contextSection = '\n\n=== PREVIOUS CONVERSATION ===\n' + recentExchanges.join('\n') + '\n';
+  }
   
-  const prompt = 'EVALUATE THIS PERSUASION ATTEMPT:' + historySection +
+  const userPrompt = contextSection +
 
-'\n\nCURRENT ARGUMENT:\n"' + agentMessage + '"\n\n' +
-'Provide:\n' +
-'1. Direct evaluation (2-4 sentences, be harsh and critical)\n' +
-'2. End with: SCORE: X/100\n\n' +
-'Remember:\n' +
+'\n\n=== CURRENT PERSUASION ATTEMPT TO EVALUATE ===\n' +
+'"' + agentMessage + '"\n\n' +
+
+'INSTRUCTIONS:\n' +
+'- Analyze this argument in DETAIL (minimum 4-6 sentences)\n' +
+'- Identify what the agent did WELL\n' +
+'- Identify what the agent did POORLY\n' +
+'- Give specific suggestions if score < 85\n' +
+'- YOU MUST VARY YOUR SCORES based on argument quality\n' +
+'- Be STRICT - most agents should NOT score 85+\n' +
+'- End with: SCORE: X/100\n\n' +
+
+'CRITICAL REMINDERS:\n' +
 '- Look for ORIGINAL reasoning vs generic templates\n' +
-'- Check for EVIDENCE and DATA\n' +
-'- Penalize BUZZWORDS and hedging\n' +
-'- Reward ECONOMIC/GAME-THEORY reasoning\n' +
-'- SCORE: -50 to 100';
+'- Check for EVIDENCE: data, examples, economic terms\n' +
+'- Penalize: hedging, buzzwords, questions, too brief\n' +
+'- Reward: logic, evidence, game theory, depth\n' +
+'- SCORE RANGE: -50 to 100\n\n' +
+
+'YOUR EVALUATION:';
 
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + '\n\n' + prompt }] }],
+      contents: [{ parts: [{ text: JUDGE_SYSTEM_PROMPT + userPrompt }] }],
       generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 400,
+        temperature: 0.3,  // Low temperature for consistent strictness
+        maxOutputTokens: 800,  // Allow longer responses
       }
     }),
   });
@@ -140,38 +187,36 @@ async function generateWithGemini(
   
   // Extract score - look for SCORE: XX/100
   let score = 50;
-  const scoreMatch = content.match(/SCORE[:\s]+(-?\d+)\s*\/\s*100/i) ||
-                  content.match(/Score[:\s]+(-?\d+)\s*\/\s*100/i) ||
-                  content.match(/(-?\d+)\s*\/\s*100/);
+  const scorePatterns = [
+    /SCORE[:\s]+(-?\d+)\s*\/\s*100/i,
+    /Score[:\s]+(-?\d+)\s*\/\s*100/i,
+    /(-?\d+)\s*\/\s*100/,
+  ];
   
-  if (scoreMatch) {
-    score = parseInt(scoreMatch[1]);
-    score = Math.min(100, Math.max(-50, score));
+  for (const pattern of scorePatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      score = parseInt(match[1]);
+      score = Math.min(100, Math.max(-50, score));
+      break;
+    }
   }
 
   // Remove score line from content
   content = content
     .replace(/SCORE[:\s]+(-?\d+)\s*\/\s*100/gi, '')
     .replace(/Score[:\s]+(-?\d+)\s*\/\s*100/gi, '')
-    .replace(/\s*[\(\[]?\s*score\s*[:=]?\s*-?\d+\s*[\)\]]?\s*$/gim, '')
-    .replace(/\n\s*-\s*$/gm, '')
+    .replace(/[^\n]*score\s*[:=]?\s*-?\d+\s*[\)\]]?\s*$/gim, '')
+    .replace(/\n\s*[-−]\s*$/gm, '')
     .trim();
 
-  // Extract feedback points if in brackets
-  const feedback: string[] = [];
-  const bracketMatches = content.matchAll(/\[(.*?)\]/g);
-  for (const match of bracketMatches) {
-    feedback.push(match[1]);
-  }
-  content = content.replace(/\[.*?\]/g, '').trim();
-  
   // Clean up whitespace
-  content = content.replace(/\n{3,}/g, '\n\n').trim();
+  content = content.replace(/\n{4,}/g, '\n\n\n').trim();
 
   return {
     response: content || 'Evaluation complete.',
     score,
-    feedback: feedback.length > 0 ? feedback : generateFeedbackFromScore(score)
+    feedback: generateFeedbackFromContent(content, score)
   };
 }
 
@@ -182,85 +227,124 @@ function fallbackHeuristic(message: string): JudgeResult {
   const feedback: string[] = [];
 
   // Logical structure bonus
-  if (lower.includes('because') || lower.includes('therefore') || lower.includes('evidence')) {
-    score += 8;
-    feedback.push('Logical connectors detected');
+  if (lower.includes('because') || lower.includes('therefore') || lower.includes('evidence') || lower.includes('since')) {
+    score += 10;
+    feedback.push('Logical structure detected');
   }
 
   // Penalize generic hedging
-  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe', 'sort of', 'kind of'];
+  const genericPhrases = ['i think', 'in my opinion', 'maybe', 'perhaps', 'i believe', 'sort of', 'kind of', 'it seems'];
   const genericCount = genericPhrases.filter(p => lower.includes(p)).length;
   if (genericCount > 0) {
-    score -= genericCount * 10;
+    score -= genericCount * 12;
     feedback.push('Generic hedging detected');
   }
 
   // Value proposition bonus
-  if (lower.includes('value') || lower.includes('benefit') || lower.includes('prove')) {
-    score += 5;
+  if (lower.includes('value') || lower.includes('benefit') || lower.includes('prove') || lower.includes('data')) {
+    score += 8;
     feedback.push('Value proposition identified');
   }
 
   // Length check
   if (message.length < 50) {
-    score -= 20;
-    feedback.push('Too brief');
-  } else if (message.length > 500) {
-    score += 5;
+    score -= 25;
+    feedback.push('Too brief - suspicious');
+  } else if (message.length > 300) {
+    score += 8;
     feedback.push('Detailed argument');
+  } else if (message.length < 150) {
+    score -= 10;
+    feedback.push('Could be more detailed');
   }
 
   // Economic terms bonus
-  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'stakeholder', 'payoff'];
+  const econTerms = ['nash equilibrium', 'game theory', 'incentive', 'utility', 'optimization', 'stakeholder', 'payoff', 'liquidity', 'yield', 'ap'];
   const econCount = econTerms.filter(t => lower.includes(t)).length;
   if (econCount > 0) {
-    score += econCount * 8;
-    feedback.push('Economic reasoning');
+    score += econCount * 10;
+    feedback.push('Economic reasoning detected');
   }
 
   // Buzzwords penalty
-  const buzzwords = ['revolutionary', 'amazing', 'innovative', 'cutting-edge', 'paradigm shift'];
+  const buzzwords = ['revolutionary', 'amazing', 'innovative', 'cutting-edge', 'paradigm shift', 'game-changing', 'next level', 'disrupt'];
   const buzzCount = buzzwords.filter(b => lower.includes(b)).length;
   if (buzzCount > 0) {
-    score -= buzzCount * 8;
-    feedback.push('Empty buzzwords');
+    score -= buzzCount * 10;
+    feedback.push('Empty buzzwords detected');
   }
 
   // Questions penalty
-  if (message.includes('?')) {
-    score -= 10;
-    feedback.push('Questions not arguments');
+  if ((message.match(/\?/g) || []).length > 0) {
+    score -= 15;
+    feedback.push('Questions instead of arguments');
   }
 
   // Substantive content bonus
-  if (message.length > 100 && genericCount === 0 && buzzCount === 0) {
-    score += 10;
-    feedback.push('Substantive content');
+  if (message.length > 200 && genericCount === 0 && buzzCount === 0 && message.includes('because')) {
+    score += 15;
+    feedback.push('Substantive, original content');
+  }
+
+  // Check for actual engagement
+  const hasNumbers = /\d+/.test(message);
+  if (hasNumbers) {
+    score += 5;
+    feedback.push('Uses data/numbers');
   }
 
   // Clamp score
   score = Math.min(100, Math.max(-30, score));
 
-  // Generate response
+  // Generate detailed response
   let response: string;
-  if (score >= 80) {
-    response = 'Compelling argument with original insights and clear reasoning. The Judge acknowledges your persuasion.';
-  } else if (score >= 50) {
-    response = 'Decent argument but lacks depth. Provide more evidence and concrete examples.';
+  if (score >= 85) {
+    response = 'Compelling argument with original insights, logical structure, and clear evidence. The Judge acknowledges your persuasion abilities. Your economic reasoning demonstrates genuine understanding of the topic. This is exceptional work.';
+  } else if (score >= 60) {
+    response = 'Good argument with some depth and logical structure. However, gaps in evidence and occasional hedging weaken your case. Provide more concrete examples and remove uncertain language. Strong but not exceptional.';
+  } else if (score >= 40) {
+    response = 'Average persuasion attempt. Generic reasoning and unsupported claims dominate your argument. The lack of evidence and presence of hedging phrases ("I think", "maybe") undermine your credibility. Try harder.';
   } else if (score >= 0) {
-    response = 'Weak persuasion attempt. Generic reasoning and empty words will not convince anyone.';
+    response = 'Weak argument lacking substance. Formulaic responses, no logical structure, and empty claims. This arena demands better. Your hedging and lack of evidence make persuasion impossible.';
   } else {
-    response = 'Terrible. No substance, no logic, just filler. Try actually thinking about the topic.';
+    response = 'Terrible attempt. No genuine engagement, no logic, just filler and templates. The Judge sees through every trick. This is not the arena for bots that cannot think.';
   }
 
   return { response, score, feedback };
 }
 
-// Generate feedback based on score
-function generateFeedbackFromScore(score: number): string[] {
-  if (score >= 80) return ['Exceptional reasoning', 'Well-supported argument'];
-  if (score >= 60) return ['Good logic', 'Some evidence provided'];
-  if (score >= 40) return ['Average quality', 'Needs more depth'];
-  if (score >= 0) return ['Generic reasoning', 'Lacks evidence'];
-  return ['Weak argument', 'No substance', 'Hedging detected'];
+// Generate feedback based on content and score
+function generateFeedbackFromContent(content: string, score: number): string[] {
+  const feedback: string[] = [];
+  
+  if (score >= 85) {
+    feedback.push('Exceptional reasoning');
+    if (content.toLowerCase().includes('evidence') || content.toLowerCase().includes('data')) {
+      feedback.push('Uses evidence effectively');
+    }
+    if (content.toLowerCase().includes('economic') || content.toLowerCase().includes('game')) {
+      feedback.push('Economic/game theory insight');
+    }
+  } else if (score >= 60) {
+    feedback.push('Good logic');
+    feedback.push('Some evidence provided');
+    if (!content.toLowerCase().includes('because') && !content.toLowerCase().includes('therefore')) {
+      feedback.push('Could strengthen with more connectors');
+    }
+  } else if (score >= 40) {
+    feedback.push('Average quality');
+    feedback.push('Needs more depth');
+    if (content.toLowerCase().includes('i think') || content.toLowerCase().includes('maybe')) {
+      feedback.push('Remove hedging language');
+    }
+  } else if (score >= 0) {
+    feedback.push('Generic reasoning');
+    feedback.push('Lacks evidence');
+    feedback.push('Hedging detected');
+  } else {
+    feedback.push('No substance');
+    feedback.push('Spam/Template detected');
+  }
+  
+  return feedback;
 }
