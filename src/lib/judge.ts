@@ -1,4 +1,4 @@
-// Judge Response Generator - Simple and robust
+// Judge Response Generator - Ultimate robustness
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -49,7 +49,6 @@ RULES:
 OUTPUT JSON:
 {"analysis":"Your critique","score":0-100,"dimensions":{"logic":0-100,"evidence":0-100,"persuasion":0-100,"originality":0-100,"clarity":0-100},"feedback":["tip1","tip2"]}`;
 
-// Main function
 export async function generateJudgeResponse(
   agentMessage: string,
   conversationHistory?: string[]
@@ -78,7 +77,6 @@ async function evaluateWithModel(
 ): Promise<JudgeResult> {
   const model = GeminiClient.getModel();
 
-  // Build simple prompt
   let prompt = STRICT_PROMPT + '\n\n';
   
   if (conversationHistory && conversationHistory.length > 0) {
@@ -87,35 +85,29 @@ async function evaluateWithModel(
   
   prompt += `ARGUMENT:\n"${agentMessage}"`;
 
-  // Generate content
   const result = await model.generateContent(prompt);
   
   if (!result) {
-    throw new Error('No result from Gemini');
+    throw new Error('No result');
   }
 
-  // Get text from response - try multiple ways
+  // Get text from various possible locations
   let text = '';
   
   // Try result.text()
   if (typeof result.text === 'function') {
     text = result.text();
   }
-  // Try result.response
+  // Try result.response.text()
   else if (result.response) {
     const resp = result.response;
     if (typeof resp.text === 'function') {
       text = resp.text();
     } else if (typeof resp === 'string') {
       text = resp;
-    } else if (resp.candidates && resp.candidates[0]) {
-      const cand = resp.candidates[0];
-      if (cand.content && cand.content.parts) {
-        text = cand.content.parts.map((p: any) => p.text).join('');
-      }
     }
   }
-  // Try result.candidates directly
+  // Try result.candidates
   else if (result.candidates && result.candidates[0]) {
     const cand = result.candidates[0];
     if (cand.content && cand.content.parts) {
@@ -123,23 +115,24 @@ async function evaluateWithModel(
     }
   }
 
-  console.log('[Judge] Response text:', text?.substring(0, 200));
+  console.log('[Judge] Response received, length:', text?.length);
 
   if (!text || text.trim().length === 0) {
     throw new Error('Empty response');
   }
 
   // Parse JSON
-  const parsed = parseJSON(text);
+  const parsed = extractJSON(text);
 
   if (!parsed || typeof parsed.score !== 'number') {
-    throw new Error('Invalid JSON');
+    console.log('[Judge] Using fallback - could not parse score');
+    return fallbackHeuristic(agentMessage);
   }
 
   const score = Math.min(100, Math.max(0, parsed.score));
-  console.log('[Judge] Score:', score);
+  console.log('[Judge] Parsed score:', score);
 
-  // Dimensions
+  // Build dimensions
   const dimensions = parsed.dimensions && typeof parsed.dimensions === 'object' ? {
     logic: Math.min(100, Math.max(0, parsed.dimensions.logic || 50)),
     evidence: Math.min(100, Math.max(0, parsed.dimensions.evidence || 50)),
@@ -160,23 +153,48 @@ async function evaluateWithModel(
   };
 }
 
-// Simple JSON parser with basic fixes
-function parseJSON(text: string): any {
+// Ultra-lenient JSON extraction
+function extractJSON(text: string): any {
+  // Method 1: Try direct parse
   try {
-    return JSON.parse(text);
+    const result = JSON.parse(text);
+    if (result && typeof result.score === 'number') {
+      return result;
+    }
   } catch {}
 
-  // Try to extract JSON object
+  // Method 2: Try extracting score from text with regex
+  const scoreMatch = text.match(/"score"\s*:\s*(\d+)/);
+  const analysisMatch = text.match(/"analysis"\s*:\s*"([^"]+)"/);
+  const responseMatch = text.match(/"response"\s*:\s*"([^"]+)"/);
+  
+  if (scoreMatch) {
+    return {
+      score: parseInt(scoreMatch[1]),
+      analysis: analysisMatch ? analysisMatch[1] : responseMatch ? responseMatch[1] : '',
+    };
+  }
+
+  // Method 3: Find { } and try to parse
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   
   if (start !== -1 && end !== -1 && end > start) {
     const json = text.substring(start, end + 1);
     try {
-      // Fix trailing commas
-      const fixed = json.replace(/,\s*([}\]])/g, '$1');
-      return JSON.parse(fixed);
-    } catch {}
+      const result = JSON.parse(json);
+      if (result && typeof result.score === 'number') {
+        return result;
+      }
+    } catch {
+      // Try fixing common issues
+      const fixed = json
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/'/g, '"');
+      try {
+        return JSON.parse(fixed);
+      } catch {}
+    }
   }
 
   return null;
