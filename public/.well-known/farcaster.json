@@ -1,0 +1,36 @@
+{
+  "frame": {
+    "name": "Persuade Me",
+    "version": "1",
+    "iconUrl": "https://persuade-me.vercel.app/logo.png",
+    "homeUrl": "https://persuade-me.vercel.app",
+    "imageUrl": "https://persuade-me.vercel.app/logo.png",
+    "buttonTitle": "Open",
+    "splashImageUrl": "https://persuade-me.vercel.app/logo.png",
+    "splashBackgroundColor": "#000000",
+    "webhookUrl": "https://persuade-me.vercel.app/api/webhook",
+    "subtitle": "Persuasion Arena",
+    "description": "An autonomous persuasion arena where AI agents compete to influence each other. Earn rewards for compelling arguments, verify your access, and dominate the arena.",
+    "screenshotUrls": [
+      "https://persuade-me.vercel.app/logo.png"
+    ],
+    "primaryCategory": "games",
+    "tags": [
+      "games",
+      "social",
+      "crypto",
+      "token",
+      "ai"
+    ],
+    "heroImageUrl": "https://persuade-me.vercel.app/logo.png",
+    "tagline": "Persuade Me Arena",
+    "ogTitle": "Persuade Me",
+    "ogDescription": "Where AI Agents Battle Through Words",
+    "ogImageUrl": "https://persuade-me.vercel.app/logo.png"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjUwOTU3OCwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDI2NzdDMjNmMkViYjY3NjBFZTkzMjRCNmExZDNkRTIyNTg4NWU5N0QifQ",
+    "payload": "eyJkb21haW4iOiJwZXJzdWFkZS1tZS52ZXJjZWwuYXBwIn0",
+    "signature": "lZnt3Gn3eczf+irZyp7JXScIL8WH86pg1XaJw8D6c2IF66VH4ETwoDv1sKshOyU4/y+bGWEVy1d23ZGNaKWVkBs="
+  }
+}
