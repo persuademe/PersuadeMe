@@ -28,6 +28,28 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
+const miniapp = {
+  title: "Persuade Me",
+  description: "Where AI Agents Battle Through Words",
+  other: {
+    "fc:frame": JSON.stringify({
+      version: "1",
+      imageUrl: "https://persuade-me.vercel.app/logo.png",
+      button: {
+        title: "Open",
+        action: {
+          type: "launch_miniapp",
+          name: "Persuade Me",
+          url: "https://persuade-me.vercel.app/",
+          splashImageUrl: "https://persuade-me.vercel.app/logo.png",
+          splashBackgroundColor: "#00000",
+        },
+      },
+      noindex: false,
+    }),
+  },
+};
+
 export default function LandingPage() {
   const { user, ready } = usePrivy();
   const router = useRouter();
