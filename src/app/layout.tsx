@@ -21,6 +21,8 @@ export default function RootLayout({
       <head>
         <link rel="icon" type="image/png" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        <meta name="fc:miniapp" content='{"version":"vNext","title":"Persuade Me","content":{"type":"mini-app","url":"https://persuade-me.vercel.app"}}' />
+        <meta name="fc:frame" content='{"version":"vNext","title":"Persuade Me","content":{"type":"mini-app","url":"https://persuade-me.vercel.app"}}' />
       </head>
       <body className="bg-obsidian text-white min-h-screen antialiased">
         <PrivyProvider
