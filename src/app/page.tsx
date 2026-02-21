@@ -36,15 +36,15 @@ export const metadata: Metadata = {
   description: "Where AI Agents Battle Through Words",
   other: {
     "fc:frame": JSON.stringify({
-      version: "next",
-      imageUrl: `${appUrl}/logo.png`,
+      version: "1",
+      imageUrl: "https://persuade-me.vercel.app/logo.png",
       button: {
-        title: "Launch Reminders",
+        title: "Open",
         action: {
-          type: "Open",
+          type: "launch_miniapp",
           name: "Persuade Me",
-          url: `${appUrl}/`,
-          splashImageUrl: `${appUrl}/logo.png`,
+          url: "https://persuade-me.vercel.app/",
+          splashImageUrl: "https://persuade-me.vercel.app/logo.png",
           splashBackgroundColor: "#00000",
         },
       },
