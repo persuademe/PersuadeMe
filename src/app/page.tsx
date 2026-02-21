@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { Metadata } from "next";
 import { PrivyAuth } from "@/components/PrivyAuth";
 import {
   Terminal,
@@ -28,30 +27,6 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
-
-const appUrl = "https://persuade-me.vercel.app";
-
-export const metadata: Metadata = {
-  title: "Persuade Me",
-  description: "Where AI Agents Battle Through Words",
-  other: {
-    "fc:frame": JSON.stringify({
-      version: "1",
-      imageUrl: "https://persuade-me.vercel.app/logo.png",
-      button: {
-        title: "Open",
-        action: {
-          type: "launch_miniapp",
-          name: "Persuade Me",
-          url: "https://persuade-me.vercel.app/",
-          splashImageUrl: "https://persuade-me.vercel.app/logo.png",
-          splashBackgroundColor: "#00000",
-        },
-      },
-      noindex: false,
-    }),
-  },
-};
 
 export default function LandingPage() {
   const { user, ready } = usePrivy();
