@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { PrivyAuth } from "@/components/PrivyAuth";
 import {
   Terminal,
@@ -46,6 +47,17 @@ export default function LandingPage() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Initialize FarCast mini-app
+    async function initMiniApp() {
+      try {
+        await sdk.actions.ready();
+        console.log('[MiniApp] Ready');
+      } catch (e) {
+        // Not running in mini-app context
+      }
+    }
+    initMiniApp();
   }, []);
 
   // Fetch real stats
