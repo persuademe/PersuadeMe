@@ -21,6 +21,7 @@ export const metadata: Metadata = {
       },
       noindex: false,
     }),
+    "base:app_id": "6975e03388e3bac59cf3d7c4",
   },
 };
 
