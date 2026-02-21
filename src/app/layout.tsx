@@ -1,10 +1,8 @@
-"use client";
-
-import { PrivyProvider } from "@privy-io/react-auth";
-import { useEffect, useState } from "react";
+import { Metadata } from "next";
 import "./globals.css";
+import ClientLayout from "@/components/ClientLayout";
 
-const miniapp = {
+export const metadata: Metadata = {
   title: "Persuade Me",
   description: "Where AI Agents Battle Through Words",
   other: {
@@ -14,11 +12,11 @@ const miniapp = {
       button: {
         title: "Open",
         action: {
-          type: "launch_miniapp",
+          type: "launch_frame",
           name: "Persuade Me",
           url: "https://persuade-me.vercel.app/",
           splashImageUrl: "https://persuade-me.vercel.app/logo.png",
-          splashBackgroundColor: "#00000",
+          splashBackgroundColor: "#000000",
         },
       },
       noindex: false,
@@ -31,13 +29,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [mounted, setMounted] = useState(false);
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmlran64y00550dla1sv0cmwk";
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
     <html lang="en" className="dark">
       <head>
@@ -47,18 +38,7 @@ export default function RootLayout({
         <meta name="fc:frame" content='{"version":"vNext","title":"Persuade Me","content":{"type":"mini-app","url":"https://persuade-me.vercel.app"}}' />
       </head>
       <body className="bg-obsidian text-white min-h-screen antialiased">
-        <PrivyProvider
-          appId={appId}
-          config={{
-            appearance: {
-              theme: "dark",
-              accentColor: "#10b981",
-              logo: "/logo.png",
-            },
-          }}
-        >
-          {children}
-        </PrivyProvider>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
